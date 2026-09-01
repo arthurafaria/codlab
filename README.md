@@ -4,7 +4,8 @@ Ferramenta de codificação manual para análise de conteúdo. Uma unidade por v
 tela, a pergunta do livro de códigos ao lado de cada variável e o bloco de colunas
 de volta para a planilha de origem — na ordem exata em que saiu.
 
-Desenvolvida no [coLAB/UFF](https://colab.meme).
+Desenvolvida no [coLAB/UFF](https://colab.meme). Interface em português e inglês;
+o seletor fica no topo e a escolha vale para o navegador.
 
 **No ar:** https://arthurafaria.github.io/codlab/
 
@@ -45,6 +46,30 @@ bun install
 bun run dev
 ```
 
+## Testes
+
+```bash
+bun test          # lógica de colunas, serialização e leitura da planilha
+bun run build
+python3 -m http.server 3100 -d out
+bun run test:e2e  # fluxo de quem codifica, no Chrome instalado
+```
+
+O e2e cobre navegação por teclado e por seletor, resposta e rascunho no
+`localStorage`, revisado com trava de obrigatórias, copiar valores nos dois
+formatos binários, CSV e backup, restaurar, importar a própria planilha (tipos,
+multi-seleção, erro legível), troca de idioma e a demo em inglês.
+
+## Estrutura
+
+| Onde | O quê |
+|---|---|
+| `lib/coding.js` | Geometria das colunas, serialização, campos obrigatórios. Sem React. |
+| `lib/round-import.js` | Lê a planilha do usuário e gera o modelo. |
+| `lib/i18n.jsx`, `lib/strings.js` | Idioma da interface e os dois dicionários, com as mesmas chaves. |
+| `app/coder-screen.jsx` | A tela de codificação, usada pela demo, pela rodada real e pela planilha carregada. |
+| `src/data/*-demo*.js` | A amostra fictícia, em pt e en. |
+
 ## Publicar
 
 O site é estático: o workflow em `.github/workflows/deploy.yml` roda `bun run build`
@@ -82,7 +107,8 @@ remova o prefixo e faça o deploy num ambiente com servidor (Vercel), seguindo
 ```bash
 bun run build
 python3 -m http.server 3100 -d out
-bun scripts/shots.mjs
+bun run shots
 ```
 
-Gera `docs-shots/` em 3200×2000. Usa o Chrome já instalado, sem baixar navegador.
+Gera `docs-shots/pt/` e `docs-shots/en/` em 3200×2000. Usa o Chrome já instalado,
+sem baixar navegador.

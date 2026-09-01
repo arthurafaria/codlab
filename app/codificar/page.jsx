@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import * as XLSX from "xlsx";
 import { SiteNav, SiteFooter } from "@/components/site-chrome";
+import { useT, fmt } from "@/lib/i18n";
 import CoderScreen from "../coder-screen";
 import {
   parseRoundWorkbook,
@@ -14,7 +15,14 @@ import {
   forgetRound,
 } from "@/lib/round-import";
 
+function errorMessage(err, t) {
+  if (err?.code && t.importer.errors[err.code]) return fmt(t.importer.errors[err.code], err.params || {});
+  return err?.message || t.importer.readFail;
+}
+
 export default function CodificarPage() {
+  const t = useT();
+  const s = t.importer;
   const [round, setRound] = useState(null);
   const [stored, setStored] = useState([]);
   const [error, setError] = useState("");
@@ -37,14 +45,16 @@ export default function CodificarPage() {
     reader.onload = () => {
       try {
         const parsed = parseRoundWorkbook(reader.result, { fileName: file.name });
+        parsed.project.eyebrow = s.loadedEyebrow;
+        if (!parsed.project.title) parsed.project.title = s.untitled;
         saveRound(parsed);
         refresh();
         setRound(parsed);
       } catch (err) {
-        setError(err.message || "Não consegui ler essa planilha.");
+        setError(errorMessage(err, t));
       }
     };
-    reader.onerror = () => setError("Não consegui abrir o arquivo.");
+    reader.onerror = () => setError(s.openFail);
     reader.readAsArrayBuffer(file);
   }
 
@@ -61,15 +71,17 @@ export default function CodificarPage() {
 
   function resume(entry) {
     const loaded = loadRound(entry.id);
-    if (loaded) setRound(loaded);
-    else {
-      setError("Essa rodada não está mais guardada neste navegador.");
+    if (loaded) {
+      loaded.project.eyebrow = s.loadedEyebrow;
+      setRound(loaded);
+    } else {
+      setError(s.gone);
       refresh();
     }
   }
 
   function drop(entry) {
-    if (!window.confirm(`Remover "${entry.title}" deste navegador? O progresso vai junto.`)) return;
+    if (!window.confirm(fmt(s.confirmRemove, { title: entry.title }))) return;
     forgetRound(entry.id);
     refresh();
   }
@@ -77,12 +89,13 @@ export default function CodificarPage() {
   if (round) {
     return (
       <CoderScreen
+        key={round.project.id}
         project={round.project}
         sourceRecords={round.records}
         codebook={round.codebook}
         extraAction={
           <button type="button" className="btn btn-ghost btn-sm" onClick={() => setRound(null)}>
-            Trocar rodada
+            {t.coder.switchRound}
           </button>
         }
       />
@@ -93,21 +106,15 @@ export default function CodificarPage() {
     <>
       <SiteNav />
       <main id="main-content">
-        <section className="shell" style={{ padding: "56px 0 24px" }}>
-          <div className="band-head" style={{ marginBottom: 32 }}>
-            <p className="script">Sua rodada, seu navegador</p>
-            <h1 style={{ fontSize: "clamp(1.9rem, 4vw, 2.6rem)" }}>
-              Carregue o livro de códigos e comece.
-            </h1>
-            <p className="prose">
-              Uma planilha <code>.xlsx</code> com as abas <code>items</code> e{" "}
-              <code>variables</code>. O arquivo é lido aqui mesmo, no navegador — não passa por
-              servidor nenhum e não sai desta máquina.
-            </p>
+        <section className="shell importer">
+          <div className="band-head importer-head">
+            <p className="script">{s.script}</p>
+            <h1 className="importer-title">{s.title}</h1>
+            <p className="prose">{s.lead}</p>
           </div>
 
           <div className="split-note">
-            <div style={{ display: "grid", gap: 18 }}>
+            <div className="importer-main">
               <div
                 className={dragging ? "dropzone is-over" : "dropzone"}
                 onDragOver={(e) => {
@@ -117,27 +124,22 @@ export default function CodificarPage() {
                 onDragLeave={() => setDragging(false)}
                 onDrop={onDrop}
               >
-                <p style={{ fontWeight: 650 }}>Arraste a planilha aqui</p>
-                <p className="prose" style={{ fontSize: "0.92rem", margin: 0 }}>
-                  ou escolha o arquivo — <code>.xlsx</code> e <code>.xlsm</code>
-                </p>
+                <p className="dropzone-title">{s.dropTitle}</p>
+                <p className="prose dropzone-hint">{s.dropHint}</p>
                 <input
                   ref={inputRef}
                   type="file"
                   accept=".xlsx,.xlsm"
-                  style={{ display: "none" }}
+                  className="visually-hidden-input"
+                  aria-label={s.choose}
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     e.target.value = "";
                     if (file) ingest(file);
                   }}
                 />
-                <button
-                  type="button"
-                  className="btn btn-dark"
-                  onClick={() => inputRef.current?.click()}
-                >
-                  Escolher planilha
+                <button type="button" className="btn btn-dark" onClick={() => inputRef.current?.click()}>
+                  {s.choose}
                 </button>
               </div>
 
@@ -148,40 +150,22 @@ export default function CodificarPage() {
               ) : null}
 
               {ready && stored.length > 0 ? (
-                <section style={{ display: "grid", gap: 12 }}>
-                  <p className="overline">Rodadas neste navegador</p>
+                <section className="stored-rounds">
+                  <p className="overline">{s.storedTitle}</p>
                   {stored.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="card"
-                      style={{
-                        gridTemplateColumns: "minmax(0,1fr) auto",
-                        display: "grid",
-                        alignItems: "center",
-                        gap: 16,
-                        padding: "18px 20px",
-                      }}
-                    >
-                      <div style={{ minWidth: 0 }}>
-                        <h3 style={{ fontSize: "0.98rem" }}>{entry.title}</h3>
-                        <p className="prose" style={{ fontSize: "0.88rem" }}>
-                          {entry.items} unidades · {entry.variables} variáveis
+                    <div key={entry.id} className="card stored-round">
+                      <div className="stored-round-copy">
+                        <h3>{entry.title}</h3>
+                        <p className="prose">
+                          {fmt(s.storedMeta, { items: entry.items, variables: entry.variables })}
                         </p>
                       </div>
-                      <div style={{ display: "flex", gap: 8 }}>
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => drop(entry)}
-                        >
-                          Remover
+                      <div className="stored-round-actions">
+                        <button type="button" className="btn btn-ghost btn-sm" onClick={() => drop(entry)}>
+                          {s.remove}
                         </button>
-                        <button
-                          type="button"
-                          className="btn btn-primary btn-sm"
-                          onClick={() => resume(entry)}
-                        >
-                          Continuar
+                        <button type="button" className="btn btn-primary btn-sm" onClick={() => resume(entry)}>
+                          {s.resume}
                         </button>
                       </div>
                     </div>
@@ -190,62 +174,35 @@ export default function CodificarPage() {
               ) : null}
             </div>
 
-            <aside style={{ display: "grid", gap: 22 }}>
+            <aside className="importer-aside">
               <div className="rule-note">
-                <h3>Não tem a planilha ainda?</h3>
-                <p className="prose" style={{ fontSize: "0.94rem" }}>
-                  Baixe o modelo em branco com as duas abas já montadas e um exemplo de cada tipo de
-                  variável.
-                </p>
+                <h3>{s.a1t}</h3>
+                <p className="prose">{s.a1}</p>
                 <div>
                   <button type="button" className="btn btn-ghost btn-sm" onClick={downloadTemplate}>
-                    Baixar modelo .xlsx
+                    {s.a1cta}
                   </button>
                 </div>
               </div>
 
               <div className="rule-note">
-                <h3>Como a aba variables funciona</h3>
-                <p className="prose" style={{ fontSize: "0.94rem" }}>
-                  Cada linha vira uma pergunta na ficha. As colunas que importam:
-                </p>
-                <ul
-                  className="prose"
-                  style={{ fontSize: "0.92rem", margin: 0, paddingLeft: "1.1rem", display: "grid", gap: 4 }}
-                >
-                  <li>
-                    <code>variable_key</code> — nome da coluna na sua planilha
-                  </li>
-                  <li>
-                    <code>label</code> — a pergunta que o codificador lê
-                  </li>
-                  <li>
-                    <code>help</code> — o critério, logo abaixo da pergunta
-                  </li>
-                  <li>
-                    <code>type</code> — <code>boolean</code>, <code>single_select</code>,{" "}
-                    <code>multi_select</code>, <code>text</code> ou <code>number</code>
-                  </li>
-                  <li>
-                    <code>options</code> — separadas por <code>|</code>
-                  </li>
-                  <li>
-                    <code>required</code> — trava o &ldquo;revisado&rdquo; enquanto estiver em branco
-                  </li>
-                  <li>
-                    <code>locked</code> — variável descontinuada: aparece travada e mantém a coluna
-                  </li>
+                <h3>{s.a2t}</h3>
+                <p className="prose">{s.a2}</p>
+                <ul className="prose spec-list">
+                  {Object.entries(s.a2rows).map(([key, desc]) => (
+                    <li key={key}>
+                      <code>{key}</code> {desc}
+                    </li>
+                  ))}
                 </ul>
               </div>
 
               <div className="rule-note">
-                <h3>Prefere ver funcionando antes?</h3>
-                <p className="prose" style={{ fontSize: "0.94rem" }}>
-                  A rodada de exemplo tem 30 unidades fictícias e 28 variáveis, já pela metade.
-                </p>
+                <h3>{s.a3t}</h3>
+                <p className="prose">{s.a3}</p>
                 <div>
                   <Link className="btn btn-ghost btn-sm" href="/demo/">
-                    Abrir exemplo
+                    {s.a3cta}
                   </Link>
                 </div>
               </div>

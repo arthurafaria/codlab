@@ -1,7 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useT, fmt } from "@/lib/i18n";
 import styles from "./coder.module.css";
+
+// Site estático não tem /api/resolve. Sem a flag, links que precisariam de
+// resolução (TikTok curto, Facebook) caem direto no cartão genérico.
+const HAS_API = process.env.NEXT_PUBLIC_HAS_API === "1";
 
 const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/gi;
 
@@ -59,6 +64,12 @@ function useResolved(rawUrl, enabled) {
   const [data, setData] = useState(() => resolveCache.get(rawUrl) || null);
   useEffect(() => {
     if (!enabled || data) return;
+    if (!HAS_API) {
+      const fallback = { url: rawUrl };
+      resolveCache.set(rawUrl, fallback);
+      setData(fallback);
+      return;
+    }
     let alive = true;
     fetch(`/api/resolve?url=${encodeURIComponent(rawUrl)}`)
       .then((r) => r.json())
@@ -79,11 +90,12 @@ function useResolved(rawUrl, enabled) {
 }
 
 function Bar({ url, label }) {
+  const t = useT();
   return (
     <div className={styles.previewBar}>
       <span className={styles.previewLabel}>{label}</span>
       <a href={url} target="_blank" rel="noopener noreferrer">
-        abrir ↗
+        {t.coder.open}
       </a>
     </div>
   );
@@ -103,15 +115,21 @@ function Reel({ src, title, vertical }) {
 }
 
 function Loading({ label }) {
-  return <div className={styles.previewLoading}>Carregando {label}…</div>;
+  const t = useT();
+  return (
+    <div className={styles.previewLoading}>
+      {t.coder.loading} {label}
+    </div>
+  );
 }
 
 function GenericCard({ url, host }) {
+  const t = useT();
   return (
     <div className={styles.genericCard}>
-      <p>Sem preview embutido{host ? ` para ${host}` : ""}.</p>
+      <p>{fmt(t.coder.noPreview, { host: host || "" })}</p>
       <a className={styles.genericOpen} href={url} target="_blank" rel="noopener noreferrer">
-        Abrir em nova aba
+        {t.coder.openTab}
       </a>
     </div>
   );
@@ -191,7 +209,7 @@ function OnePreview({ link }) {
         <Bar url={info.url} label="X / Twitter" />
         <iframe
           className={styles.socialFrame}
-          src={`https://platform.twitter.com/embed/Tweet.html?id=${info.id}&theme=dark&dnt=true`}
+          src={`https://platform.twitter.com/embed/Tweet.html?id=${info.id}&theme=light&dnt=true`}
           title="Post no X"
           scrolling="no"
         />

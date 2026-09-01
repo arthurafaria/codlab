@@ -678,3 +678,32 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- Complementos ---- */
+.loading {
+  color: var(--muted);
+  margin-top: 16px;
+}
+
+/* Ícone "não preencher": círculo com barra, desenhado em CSS. */
+.lockedIcon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-radius: 999px;
+  position: relative;
+  margin-bottom: 3px;
+}
+
+.lockedIcon::after {
+  content: "";
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  top: 50%;
+  height: 2px;
+  margin-top: -1px;
+  background: currentColor;
+  transform: rotate(-45deg);
+}

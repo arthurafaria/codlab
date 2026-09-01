@@ -45,7 +45,7 @@ export const editableFields = [
     locked: true,
     lockedNote: "será automatizada · não preencher",
     question: "A mensagem contém mídia anexada?",
-    help: "AUTOMATIZADA — não codificar. Preenchida por processo automático; fica no bloco só para o alinhamento das colunas.",
+    help: "AUTOMATIZADA. Não codificar. Preenchida por processo automático; fica no bloco só para o alinhamento das colunas.",
   },
   {
     key: "Perfil_Emissor",
@@ -55,7 +55,7 @@ export const editableFields = [
     locked: true,
     lockedNote: "será automatizada · não preencher",
     question: "Perfil declarado do canal de origem",
-    help: "AUTOMATIZADA — não codificar. Derivada dos metadados do canal.",
+    help: "AUTOMATIZADA. Não codificar. Derivada dos metadados do canal.",
     options: ["Aberto", "Restrito"],
   },
   {
@@ -66,7 +66,7 @@ export const editableFields = [
     locked: true,
     lockedNote: "será automatizada · não preencher",
     question: "Categoria da fonte informacional do link",
-    help: "AUTOMATIZADA — não codificar. Classificada por processo automático a partir do domínio.",
+    help: "AUTOMATIZADA. Não codificar. Classificada por processo automático a partir do domínio.",
     options: ["Veículo Jornalístico", "Plataformas e Mensageria", "Institucional", "Não identificada"],
   },
   {
@@ -164,7 +164,7 @@ export const editableFields = [
     locked: true,
     lockedNote: "variável descontinuada · não preencher",
     question: "Seleciona evidências convenientes?",
-    help: "DESCONTINUADA nesta rodada — não codificar. Permanece no bloco para não deslocar as colunas seguintes.",
+    help: "DESCONTINUADA nesta rodada. Não codificar. Permanece no bloco para não deslocar as colunas seguintes.",
   },
   {
     key: "Marco_Polarizacao",
@@ -287,10 +287,4 @@ export const editableFields = [
 export const exportColumns = editableFields.map((field) => field.key);
 export const exportHeaders = editableFields.map((field) => field.header);
 
-export const binaryFormats = {
-  "FALSE/TRUE": { no: "FALSE", yes: "TRUE" },
-  "0/1": { no: "0", yes: "1" },
-  "Não/Sim": { no: "Não", yes: "Sim" },
-};
-
-export const defaultBinaryFormat = "FALSE/TRUE";
+export { BINARY_FORMATS as binaryFormats, DEFAULT_BINARY_FORMAT as defaultBinaryFormat } from "../../lib/coding";

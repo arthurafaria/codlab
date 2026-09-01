@@ -4,21 +4,18 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { LinkPreviews, extractLinks } from "./link-preview";
 import { SiteNav } from "@/components/site-chrome";
+import { useT, useLang, fmt } from "@/lib/i18n";
+import {
+  computeLayout,
+  buildRecords,
+  buildPasteRows,
+  serializeValue,
+  missingRequiredFields,
+} from "@/lib/coding";
 import styles from "./coder.module.css";
 
-// Tela de codificação de registro único. Recebe a rodada por props para que a
-// amostra real e a amostra demonstrativa rodem exatamente o mesmo código.
-
-function sheetColLetter(n) {
-  let s = "";
-  let x = n + 1;
-  while (x > 0) {
-    const m = (x - 1) % 26;
-    s = String.fromCharCode(65 + m) + s;
-    x = Math.floor((x - 1) / 26);
-  }
-  return s;
-}
+// Tela de codificação de unidade única. Recebe a rodada por props: a rodada
+// real, a demo e a planilha carregada pelo usuário rodam o mesmo código.
 
 async function copyText(text) {
   if (navigator.clipboard?.writeText) {
@@ -48,13 +45,26 @@ function downloadText(filename, text, type) {
 }
 
 function BooleanControl({ value, onChange }) {
+  const labels = useT().coder;
   return (
     <div className={styles.segmented} role="radiogroup">
-      <button type="button" className={value === true ? "" : styles.active} onClick={() => onChange(false)}>
-        Não
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value !== true}
+        className={value === true ? "" : styles.active}
+        onClick={() => onChange(false)}
+      >
+        {labels.no}
       </button>
-      <button type="button" className={value === true ? styles.active : ""} onClick={() => onChange(true)}>
-        Sim
+      <button
+        type="button"
+        role="radio"
+        aria-checked={value === true}
+        className={value === true ? styles.active : ""}
+        onClick={() => onChange(true)}
+      >
+        {labels.yes}
       </button>
     </div>
   );
@@ -83,24 +93,18 @@ function FieldControl({ field, value, onChange }) {
     );
   }
   if (field.type === "multi") {
-    // Guardado como string separada por "|" — é assim que volta para a planilha.
+    // Guardado como string separada por "|": é assim que volta para a planilha.
     const picked = String(value || "").split("|").filter(Boolean);
     const toggle = (option) => {
-      const next = picked.includes(option)
-        ? picked.filter((p) => p !== option)
-        : [...picked, option];
-      // Preserva a ordem declarada no livro de códigos, não a ordem do clique.
+      const next = picked.includes(option) ? picked.filter((p) => p !== option) : [...picked, option];
+      // Ordem do livro de códigos, não do clique.
       onChange((field.options || []).filter((o) => next.includes(o)).join("|"));
     };
     return (
       <div className={styles.checkGroup}>
         {(field.options || []).map((option) => (
           <label key={option} className={styles.checkOption}>
-            <input
-              type="checkbox"
-              checked={picked.includes(option)}
-              onChange={() => toggle(option)}
-            />
+            <input type="checkbox" checked={picked.includes(option)} onChange={() => toggle(option)} />
             {option}
           </label>
         ))}
@@ -128,58 +132,18 @@ function FieldControl({ field, value, onChange }) {
 }
 
 export default function CoderScreen({ project, sourceRecords, codebook, extraAction = null }) {
+  const t = useT();
+  const { lang } = useLang();
+  const c = t.coder;
   const { editableFields, metaFields, binaryFormats, defaultBinaryFormat, textField } = codebook;
 
-  // Geometria do bloco de colunas codificáveis, derivada do livro de códigos.
-  const layout = useMemo(() => {
-    const defaults = Object.fromEntries(
-      editableFields.map((field) => [field.key, field.type === "boolean" ? false : ""]),
-    );
-    // Variáveis canceladas: sempre travadas no valor padrão (booleano = false/Não).
-    const lockedResets = Object.fromEntries(
-      editableFields
-        .filter((field) => field.locked)
-        .map((field) => [field.key, field.type === "boolean" ? false : ""]),
-    );
-    // A colagem pula as colunas automáticas/herdadas do começo e começa na primeira
-    // coluna que o humano realmente codifica. Colunas travadas no meio continuam no
-    // bloco para manter o alinhamento.
-    const codedBlockStart = project.codedBlockStart ?? 10; // coluna K (0-indexed)
-    const firstCodeIndex = editableFields.findIndex((field) => !field.locked && !field.inherited);
-    const pasteFields = editableFields.slice(firstCodeIndex);
-    return {
-      defaults,
-      lockedResets,
-      pasteFields,
-      pasteHeaders: pasteFields.map((field) => field.header),
-      pasteColLetter: sheetColLetter(codedBlockStart + firstCodeIndex),
-      lastColLetter: sheetColLetter(codedBlockStart + editableFields.length - 1),
-      // Só existe bloco automático quando há colunas travadas/herdadas antes da
-      // primeira codificável. Sem elas, a frase não se aplica.
-      hasAutoBlock: firstCodeIndex > 0,
-      autoFirstLetter: sheetColLetter(codedBlockStart),
-      autoLastLetter: sheetColLetter(codedBlockStart + firstCodeIndex - 1),
-    };
-  }, [editableFields, project.codedBlockStart]);
-
-  const buildRecords = useMemo(
-    () => (saved) =>
-      sourceRecords.map((row, index) => ({
-        ...layout.defaults,
-        ...row,
-        ...(saved ? saved[index] : null),
-        // Conteúdo-fonte nunca é sobrescrito pelo rascunho.
-        id: row.id,
-        [textField]: row[textField],
-        ...Object.fromEntries(metaFields.map((meta) => [meta.key, row[meta.key]])),
-        // Categorias canceladas nunca recebem valor, mesmo vindo de rascunho antigo.
-        ...layout.lockedResets,
-      })),
-    [sourceRecords, layout, metaFields, textField],
+  const layout = useMemo(
+    () => computeLayout(editableFields, project.codedBlockStart ?? 10),
+    [editableFields, project.codedBlockStart],
   );
 
   const [ready, setReady] = useState(false);
-  const [records, setRecords] = useState(() => buildRecords(null));
+  const [records, setRecords] = useState(() => buildRecords(sourceRecords, layout, codebook));
   const [reviewed, setReviewed] = useState({});
   const [index, setIndex] = useState(0);
   const [binaryFormat, setBinaryFormat] = useState(defaultBinaryFormat);
@@ -189,7 +153,6 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
   const fileInputRef = useRef(null);
 
   function loadSaved() {
-    if (typeof window === "undefined") return null;
     try {
       const saved = JSON.parse(localStorage.getItem(project.storageKey) || "null");
       if (!saved || !Array.isArray(saved.records) || saved.records.length !== sourceRecords.length) {
@@ -201,21 +164,23 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
     }
   }
 
+  // Monta uma vez por rodada (o pai troca a `key` quando a rodada muda).
   useEffect(() => {
     const saved = loadSaved();
     if (saved) {
-      setRecords(buildRecords(saved.records));
+      setRecords(buildRecords(sourceRecords, layout, codebook, saved.records));
       setReviewed(saved.reviewed || {});
       setIndex(Math.min(saved.index ?? 0, sourceRecords.length - 1));
       if (saved.binaryFormat && binaryFormats[saved.binaryFormat]) setBinaryFormat(saved.binaryFormat);
     } else if (project.demoSeed) {
-      // Amostra demonstrativa: abre já em andamento, para mostrar a ferramenta em uso.
+      // Demo abre já em andamento, para mostrar a ferramenta em uso.
       const seeded = {};
       for (let i = 0; i < project.demoSeed.reviewed; i += 1) seeded[i] = true;
       setReviewed(seeded);
       setIndex(Math.min(project.demoSeed.index ?? 0, sourceRecords.length - 1));
     }
     setReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -224,39 +189,32 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
       project.storageKey,
       JSON.stringify({ records, reviewed, index, binaryFormat, updatedAt: new Date().toISOString() }),
     );
-    setLastSaved(new Date().toLocaleTimeString("pt-BR"));
-  }, [ready, records, reviewed, index, binaryFormat]);
+    setLastSaved(new Date().toLocaleTimeString(lang === "en" ? "en-US" : "pt-BR"));
+  }, [ready, records, reviewed, index, binaryFormat, project.storageKey]);
 
   const total = records.length;
   const current = records[index];
   const reviewedCount = Object.values(reviewed).filter(Boolean).length;
   const percent = total ? Math.round((reviewedCount / total) * 100) : 0;
   const links = useMemo(() => extractLinks(current?.[textField]), [current, textField]);
-
   const inheritedFields = useMemo(() => editableFields.filter((f) => f.inherited), [editableFields]);
-  const fieldsByGroup = useMemo(() => {
-    return editableFields
-      .filter((f) => !f.inherited)
-      .reduce((acc, field) => {
-        (acc[field.group] ||= []).push(field);
-        return acc;
-      }, {});
-  }, [editableFields]);
-
-  // Obrigatórias em branco travam o "marcar revisado": é mais barato barrar aqui
-  // do que descobrir o buraco na conferência.
-  const missingRequired = useMemo(() => {
-    if (!current) return [];
-    return editableFields.filter((field) => {
-      if (!field.required || field.locked || field.inherited) return false;
-      const value = current[field.key];
-      if (field.type === "boolean") return value !== true && value !== false;
-      return !String(value ?? "").trim();
-    });
-  }, [current, editableFields]);
+  const fieldsByGroup = useMemo(
+    () =>
+      editableFields
+        .filter((f) => !f.inherited)
+        .reduce((acc, field) => {
+          (acc[field.group] ||= []).push(field);
+          return acc;
+        }, {}),
+    [editableFields],
+  );
+  const missingRequired = useMemo(
+    () => missingRequiredFields(current, editableFields),
+    [current, editableFields],
+  );
 
   function renderInherited(value, field) {
-    if (field.type === "boolean") return value === true ? "Sim" : "Não";
+    if (field.type === "boolean") return value === true ? c.yes : c.no;
     return String(value ?? "") || "—";
   }
 
@@ -270,50 +228,37 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function markReviewedAndAdvance() {
-    if (missingRequired.length) {
-      flash(`Faltam ${missingRequired.length} obrigatórias: ${missingRequired[0].header}`);
-      return;
-    }
-    setReviewed((r) => ({ ...r, [index]: true }));
-    if (index < total - 1) goTo(index + 1);
-  }
-
-  function serialize(record, field) {
-    const value = record[field.key];
-    if (field.type === "boolean") {
-      const fmt = binaryFormats[binaryFormat];
-      return value === true ? fmt.yes : fmt.no;
-    }
-    return String(value ?? "").replace(/[\t\r\n]+/g, " ").trim();
-  }
-
-  function buildRows(includeHeader) {
-    const body = records.map((record) =>
-      layout.pasteFields.map((field) => serialize(record, field)).join("\t"),
-    );
-    return includeHeader ? [layout.pasteHeaders.join("\t"), ...body].join("\n") : body.join("\n");
-  }
-
   function flash(message) {
     setCopyStatus(message);
     if (copyTimer.current) clearTimeout(copyTimer.current);
     copyTimer.current = setTimeout(() => setCopyStatus(""), 2600);
   }
 
+  function markReviewedAndAdvance() {
+    if (missingRequired.length) {
+      flash(fmt(c.missingFlash, { n: missingRequired.length, first: missingRequired[0].header }));
+      return;
+    }
+    setReviewed((r) => ({ ...r, [index]: true }));
+    if (index < total - 1) goTo(index + 1);
+  }
+
   async function copyValues(includeHeader) {
-    await copyText(buildRows(includeHeader));
+    await copyText(buildPasteRows(records, layout, binaryFormats[binaryFormat], includeHeader));
     flash(
-      includeHeader
-        ? `${total} linhas + cabeçalho — cole na coluna ${layout.pasteColLetter}`
-        : `${total} linhas × ${layout.pasteFields.length} colunas — cole na coluna ${layout.pasteColLetter}`,
+      fmt(includeHeader ? c.copiedHeaderFlash : c.copiedFlash, {
+        n: total,
+        c: layout.pasteFields.length,
+        col: layout.pasteColLetter,
+      }),
     );
   }
 
   function makeAoa() {
+    const fmtBin = binaryFormats[binaryFormat];
     return [
       layout.pasteHeaders,
-      ...records.map((record) => layout.pasteFields.map((field) => serialize(record, field))),
+      ...records.map((record) => layout.pasteFields.map((field) => serializeValue(record, field, fmtBin))),
     ];
   }
 
@@ -331,9 +276,9 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
   }
 
   function resetProgress() {
-    if (!window.confirm("Restaurar os dados originais neste navegador? Isso apaga o rascunho.")) return;
+    if (!window.confirm(c.confirmRestore)) return;
     localStorage.removeItem(project.storageKey);
-    setRecords(buildRecords(null));
+    setRecords(buildRecords(sourceRecords, layout, codebook));
     setReviewed({});
     setIndex(0);
   }
@@ -353,7 +298,7 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
       JSON.stringify({ version: 1, storageKey: project.storageKey, index, reviewed, records: coded }, null, 2),
       "application/json",
     );
-    flash("Backup baixado");
+    flash(c.backupSaved);
   }
 
   function importBackup(event) {
@@ -365,15 +310,15 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
       try {
         const data = JSON.parse(String(reader.result));
         if (!Array.isArray(data.records) || data.records.length !== sourceRecords.length) {
-          window.alert("Backup inválido: número de registros diferente.");
+          window.alert(c.backupBadCount);
           return;
         }
-        setRecords(buildRecords(data.records));
+        setRecords(buildRecords(sourceRecords, layout, codebook, data.records));
         setReviewed(data.reviewed || {});
         setIndex(Math.min(data.index ?? 0, sourceRecords.length - 1));
-        flash("Backup carregado");
+        flash(c.backupLoaded);
       } catch {
-        window.alert("Não consegui ler esse arquivo de backup.");
+        window.alert(c.backupUnreadable);
       }
     };
     reader.readAsText(file);
@@ -389,233 +334,229 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [index, total]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, total, missingRequired]);
 
-  // Evita erro de hidratação: servidor e primeira renderização do cliente mostram
-  // o mesmo shell estático; a UI interativa só entra depois de montar no cliente.
+  // Servidor e primeira renderização do cliente mostram o mesmo shell estático;
+  // a UI interativa entra depois de montar, evitando erro de hidratação.
   if (!ready || !current) {
     return (
       <>
-      <SiteNav />
-      <main id="main-content" className={styles.root}>
-        <div className={styles.shell}>
-          <p className={styles.eyebrow}>{project.eyebrow}</p>
-          <h1 className={styles.title}>{project.title}</h1>
-          <p style={{ color: "var(--muted)", marginTop: 16 }}>Carregando…</p>
-        </div>
-      </main>
+        <SiteNav />
+        <main id="main-content" className={styles.root}>
+          <div className={styles.shell}>
+            <p className={styles.eyebrow}>{project.eyebrow}</p>
+            <h1 className={styles.title}>{project.title}</h1>
+            <p className={styles.loading}>{c.loading}</p>
+          </div>
+        </main>
       </>
     );
   }
 
+  const reviewLabel = missingRequired.length
+    ? missingRequired.length === 1
+      ? c.missingOne
+      : fmt(c.missingMany, { n: missingRequired.length })
+    : reviewed[index]
+      ? c.reviewedNext
+      : c.markReviewed;
+
   return (
     <>
-    <SiteNav />
-    <main id="main-content" className={styles.root}>
-      <div className={styles.shell}>
-        <header className={styles.topbar}>
-          <div>
-            <p className={styles.eyebrow}>{project.eyebrow}</p>
-            <h1 className={styles.title}>{project.title}</h1>
-          </div>
-          <div className={styles.topActions}>
-            {extraAction}
-            <label
-              className={styles.formatPicker}
-              title="FALSE/TRUE casa com os checkboxes do Google Sheets. Use 0/1 só se a coluna não for checkbox."
-            >
-              Binário
-              <select
-                className={styles.select}
-                value={binaryFormat}
-                onChange={(event) => setBinaryFormat(event.target.value)}
-              >
-                {Object.keys(binaryFormats).map((key) => (
-                  <option key={key} value={key}>
-                    {key}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button type="button" className={styles.btnPrimary} onClick={() => copyValues(false)}>
-              Copiar valores
-            </button>
-            <button type="button" className={styles.btn} onClick={exportCsv}>
-              CSV
-            </button>
-            <button type="button" className={styles.btn} onClick={exportXlsx}>
-              XLSX
-            </button>
-          </div>
-        </header>
-
-        <section className={styles.statusRow}>
-          <div className={styles.statusText}>
-            <strong>
-              Registro {String(index + 1).padStart(3, "0")}/{total} · ID {current.ID}
-            </strong>
-            <span>
-              {reviewedCount}/{total} revisados · {percent}%
-              {lastSaved ? ` · salvo ${lastSaved} ✓` : ""}
-              {copyStatus ? ` · ${copyStatus}` : ""}
-            </span>
-          </div>
-          <progress className={styles.progress} value={reviewedCount} max={total} />
-        </section>
-
-        <p className={styles.pasteHint}>
-          <strong>Copiar valores</strong> gera as colunas{" "}
-          <strong>
-            {layout.pasteColLetter}→{layout.lastColLetter}
-          </strong>
-          {layout.hasAutoBlock ? (
-            <>
-              {" "}
-              (só as que você codifica; {layout.autoFirstLetter}–{layout.autoLastLetter} são
-              automáticas)
-            </>
-          ) : null}
-          . Cole na célula <strong>{layout.pasteColLetter}</strong> da primeira linha de dados — ex.:{" "}
-          <strong>
-            {layout.pasteColLetter}
-            {project.exampleRow ?? 132}
-          </strong>
-          .
-        </p>
-
-        <div className={styles.workspace}>
-          <aside className={styles.leftPane}>
-            <div className={styles.textBox}>{current[textField] || "— sem texto —"}</div>
-            <LinkPreviews links={links} />
-            <div className={styles.navigator}>
-              <button type="button" className={styles.btn} disabled={index === 0} onClick={() => goTo(index - 1)}>
-                Anterior
+      <SiteNav />
+      <main id="main-content" className={styles.root}>
+        <div className={styles.shell}>
+          <header className={styles.topbar}>
+            <div>
+              <p className={styles.eyebrow}>{project.eyebrow}</p>
+              <h1 className={styles.title}>{project.title}</h1>
+            </div>
+            <div className={styles.topActions}>
+              {extraAction}
+              <label className={styles.formatPicker} title={c.binaryTitle}>
+                {c.binary}
+                <select
+                  className={styles.select}
+                  value={binaryFormat}
+                  onChange={(event) => setBinaryFormat(event.target.value)}
+                >
+                  {Object.keys(binaryFormats).map((key) => (
+                    <option key={key} value={key}>
+                      {key}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className={styles.btnPrimary} onClick={() => copyValues(false)}>
+                {c.copyValues}
               </button>
-              <select
-                className={styles.select}
-                value={index}
-                onChange={(event) => goTo(Number(event.target.value))}
-                aria-label="Selecionar registro"
-              >
-                {records.map((row, i) => (
-                  <option key={row.id} value={i}>
-                    {String(i + 1).padStart(3, "0")} · {row.Outlet || "—"}
-                    {reviewed[i] ? " ✓" : ""}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className={styles.btn}
-                disabled={index === total - 1}
-                onClick={() => goTo(index + 1)}
-              >
-                Próxima
+              <button type="button" className={styles.btn} onClick={exportCsv}>
+                {c.csv}
+              </button>
+              <button type="button" className={styles.btn} onClick={exportXlsx}>
+                {c.xlsx}
               </button>
             </div>
-          </aside>
+          </header>
 
-          <section className={styles.formPane}>
-            <section className={styles.metadata}>
-              {metaFields.map((meta) => (
-                <div key={meta.key}>
-                  <span>{meta.label}</span>
-                  <strong>{String(current[meta.key] ?? "") || "—"}</strong>
-                </div>
-              ))}
-            </section>
+          <section className={styles.statusRow} aria-live="polite">
+            <div className={styles.statusText}>
+              <strong>{fmt(c.record, { i: String(index + 1).padStart(3, "0"), n: total, id: current.ID })}</strong>
+              <span>
+                {fmt(c.reviewed, { r: reviewedCount, n: total, p: percent })}
+                {lastSaved ? ` · ${fmt(c.saved, { t: lastSaved })}` : ""}
+                {copyStatus ? ` · ${copyStatus}` : ""}
+              </span>
+            </div>
+            <progress className={styles.progress} value={reviewedCount} max={total} />
+          </section>
 
-            <p className={styles.inheritedTitle}>Não preencher (coluna herdada)</p>
-            <section className={styles.inheritedStrip}>
-              {inheritedFields.map((field) => (
-                <div className={styles.inheritedChip} key={field.key}>
-                  <span>{field.header}</span>
-                  <strong>{renderInherited(current[field.key], field)}</strong>
-                </div>
-              ))}
-            </section>
+          <p className={styles.pasteHint}>
+            {fmt(c.hint, {
+              copy: c.copyValues,
+              from: layout.pasteColLetter,
+              to: layout.lastColLetter,
+              row: project.exampleRow ?? 2,
+              auto: layout.hasAutoBlock
+                ? fmt(c.hintAuto, { a: layout.autoFirstLetter, b: layout.autoLastLetter })
+                : "",
+            })}
+          </p>
 
-            {Object.entries(fieldsByGroup).map(([group, fields]) => (
-              <section className={styles.fieldGroup} key={group}>
-                <h2>{group}</h2>
-                {fields.map((field) => (
-                  <article
-                    className={field.locked ? `${styles.fieldRow} ${styles.fieldRowLocked}` : styles.fieldRow}
-                    key={field.key}
-                  >
-                    <div className={styles.fieldCopy}>
-                      <span className={styles.fieldKey}>
-                        {field.header}
-                        {field.required && !field.locked ? (
-                          <b className={styles.reqMark} title="obrigatória">
-                            obrigatória
-                          </b>
-                        ) : null}
-                      </span>
-                      <h3 className={styles.fieldQuestion}>{field.question}</h3>
-                      <p className={styles.fieldHelp}>{field.help}</p>
-                    </div>
-                    <div className={styles.fieldInput}>
-                      {field.locked ? (
-                        <div className={styles.lockedBadge}>
-                          ⛔ NÃO PREENCHER
-                          <span>{field.lockedNote || "não preencher"}</span>
-                        </div>
-                      ) : (
-                        <FieldControl
-                          field={field}
-                          value={current[field.key]}
-                          onChange={(value) => updateField(field.key, value)}
-                        />
-                      )}
-                    </div>
-                  </article>
+          <div className={styles.workspace}>
+            <aside className={styles.leftPane}>
+              <div className={styles.textBox}>{current[textField] || c.noText}</div>
+              <LinkPreviews links={links} />
+              <div className={styles.navigator}>
+                <button type="button" className={styles.btn} disabled={index === 0} onClick={() => goTo(index - 1)}>
+                  {c.prev}
+                </button>
+                <select
+                  className={styles.select}
+                  value={index}
+                  onChange={(event) => goTo(Number(event.target.value))}
+                  aria-label={c.selectRecord}
+                >
+                  {records.map((row, i) => (
+                    <option key={row.id} value={i}>
+                      {String(i + 1).padStart(3, "0")} · {row.Outlet || "—"}
+                      {reviewed[i] ? " ✓" : ""}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className={styles.btn}
+                  disabled={index === total - 1}
+                  onClick={() => goTo(index + 1)}
+                >
+                  {c.next}
+                </button>
+              </div>
+            </aside>
+
+            <section className={styles.formPane}>
+              <section className={styles.metadata}>
+                {metaFields.map((meta) => (
+                  <div key={meta.key}>
+                    <span>{meta.label}</span>
+                    <strong>{String(current[meta.key] ?? "") || "—"}</strong>
+                  </div>
                 ))}
               </section>
-            ))}
 
-            <footer className={styles.footerActions}>
-              <button type="button" className={`${styles.btn} ${styles.btnDanger}`} onClick={resetProgress}>
-                Restaurar
-              </button>
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/json,.json"
-                style={{ display: "none" }}
-                onChange={importBackup}
-              />
-              <button type="button" className={styles.btn} onClick={() => fileInputRef.current?.click()}>
-                Carregar backup
-              </button>
-              <button type="button" className={styles.btn} onClick={downloadBackup}>
-                Baixar backup
-              </button>
-              <button type="button" className={styles.btn} onClick={() => copyValues(true)}>
-                Copiar com cabeçalho
-              </button>
-              <button
-                type="button"
-                className={reviewed[index] ? `${styles.btn} ${styles.btnDone}` : styles.btnPrimary}
-                onClick={markReviewedAndAdvance}
-                disabled={missingRequired.length > 0}
-                title={
-                  missingRequired.length
-                    ? `Obrigatórias em branco: ${missingRequired.map((f) => f.header).join(", ")}`
-                    : undefined
-                }
-              >
-                {missingRequired.length
-                  ? `${missingRequired.length} obrigatória${missingRequired.length > 1 ? "s" : ""} em branco`
-                  : reviewed[index]
-                    ? "Revisado · avançar"
-                    : "Marcar revisado (Enter)"}
-              </button>
-            </footer>
-          </section>
+              {inheritedFields.length > 0 ? (
+                <>
+                  <p className={styles.inheritedTitle}>{c.inheritedTitle}</p>
+                  <section className={styles.inheritedStrip}>
+                    {inheritedFields.map((field) => (
+                      <div className={styles.inheritedChip} key={field.key}>
+                        <span>{field.header}</span>
+                        <strong>{renderInherited(current[field.key], field)}</strong>
+                      </div>
+                    ))}
+                  </section>
+                </>
+              ) : null}
+
+              {Object.entries(fieldsByGroup).map(([group, fields]) => (
+                <section className={styles.fieldGroup} key={group}>
+                  <h2>{group}</h2>
+                  {fields.map((field) => (
+                    <article
+                      className={field.locked ? `${styles.fieldRow} ${styles.fieldRowLocked}` : styles.fieldRow}
+                      key={field.key}
+                    >
+                      <div className={styles.fieldCopy}>
+                        <span className={styles.fieldKey}>
+                          {field.header}
+                          {field.required && !field.locked ? (
+                            <b className={styles.reqMark}>{c.required}</b>
+                          ) : null}
+                        </span>
+                        <h3 className={styles.fieldQuestion}>{field.question}</h3>
+                        <p className={styles.fieldHelp}>{field.help}</p>
+                      </div>
+                      <div className={styles.fieldInput}>
+                        {field.locked ? (
+                          <div className={styles.lockedBadge}>
+                            <span className={styles.lockedIcon} aria-hidden="true" />
+                            {c.lockedBadge}
+                            <span>{field.lockedNote || c.lockedDefault}</span>
+                          </div>
+                        ) : (
+                          <FieldControl
+                            field={field}
+                            value={current[field.key]}
+                            onChange={(value) => updateField(field.key, value)}
+                          />
+                        )}
+                      </div>
+                    </article>
+                  ))}
+                </section>
+              ))}
+
+              <footer className={styles.footerActions}>
+                <button type="button" className={`${styles.btn} ${styles.btnDanger}`} onClick={resetProgress}>
+                  {c.restore}
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="application/json,.json"
+                  className="visually-hidden-input"
+                  aria-label={c.loadBackup}
+                  onChange={importBackup}
+                />
+                <button type="button" className={styles.btn} onClick={() => fileInputRef.current?.click()}>
+                  {c.loadBackup}
+                </button>
+                <button type="button" className={styles.btn} onClick={downloadBackup}>
+                  {c.downloadBackup}
+                </button>
+                <button type="button" className={styles.btn} onClick={() => copyValues(true)}>
+                  {c.copyHeader}
+                </button>
+                <button
+                  type="button"
+                  className={reviewed[index] ? `${styles.btn} ${styles.btnDone}` : styles.btnPrimary}
+                  onClick={markReviewedAndAdvance}
+                  disabled={missingRequired.length > 0}
+                  title={
+                    missingRequired.length
+                      ? fmt(c.missingTitle, { list: missingRequired.map((f) => f.header).join(", ") })
+                      : undefined
+                  }
+                >
+                  {reviewLabel}
+                </button>
+              </footer>
+            </section>
+          </div>
         </div>
-      </div>
-    </main>
+      </main>
     </>
   );
 }

@@ -21,30 +21,47 @@ const SCALE = 2;
 const WIDTH = 1600;
 const HEIGHT = 1000;
 
-const DEMO_KEY = "codifica-colab:demo:v1";
-
 const shots = [
-  { file: "01-home.png", url: "/", caption: "Página inicial", fullPage: true },
-  { file: "02-home-dobra.png", url: "/", caption: "Página inicial — primeira dobra" },
-  { file: "03-codificador.png", url: "/demo/", caption: "Tela do codificador" },
+  // Português
+  { file: "pt/01-inicial.png", url: "/", lang: "pt", caption: "Página inicial (completa)", fullPage: true },
+  { file: "pt/02-inicial-dobra.png", url: "/", lang: "pt", caption: "Página inicial, primeira dobra" },
+  { file: "pt/03-codificacao.png", url: "/demo/", lang: "pt", caption: "Tela de codificação" },
   {
-    file: "04-livro-de-codigos.png",
+    file: "pt/04-livro-de-codigos.png",
     url: "/demo/",
+    lang: "pt",
     caption: "Livro de códigos aplicado à unidade",
     scrollTo: "[class*=fieldGroup]",
     nth: 1,
     offset: 0,
   },
   {
-    file: "05-variavel-travada.png",
+    file: "pt/05-variavel-travada.png",
     url: "/demo/",
+    lang: "pt",
     caption: "Variável descontinuada mantém a coluna",
     scrollTo: "[class*=fieldRowLocked]",
     nth: -1,
     offset: -340,
   },
-  { file: "06-importador.png", url: "/codificar/", caption: "Carregar a própria planilha" },
+  { file: "pt/06-importar.png", url: "/codificar/", lang: "pt", caption: "Carregar a própria planilha" },
+  // English
+  { file: "en/01-home.png", url: "/", lang: "en", caption: "Home (full page)", fullPage: true },
+  { file: "en/02-home-fold.png", url: "/", lang: "en", caption: "Home, first fold" },
+  { file: "en/03-coding.png", url: "/demo/", lang: "en", caption: "Coding screen" },
+  {
+    file: "en/04-codebook.png",
+    url: "/demo/",
+    lang: "en",
+    caption: "Codebook applied to the unit",
+    scrollTo: "[class*=fieldGroup]",
+    nth: 1,
+    offset: 0,
+  },
+  { file: "en/05-import.png", url: "/codificar/", lang: "en", caption: "Load your own spreadsheet" },
 ];
+
+const DEMO_KEYS = ["codifica-colab:demo:v1", "codifica-colab:demo:en:v1"];
 
 async function main() {
   await mkdir(OUT, { recursive: true });
@@ -60,10 +77,16 @@ async function main() {
     for (const shot of shots) {
       const page = await browser.newPage();
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
+      // Idioma fixo e rascunho da demo zerado, para todo print sair no mesmo estado.
+      await page.evaluateOnNewDocument(
+        (lang, keys) => {
+          localStorage.setItem("codlab:lang", lang);
+          keys.forEach((k) => localStorage.removeItem(k));
+        },
+        shot.lang,
+        DEMO_KEYS,
+      );
       await page.goto(`${BASE}${shot.url}`, { waitUntil: "networkidle0" });
-      // Zera o rascunho da demo para todo print sair no mesmo estado.
-      await page.evaluate((key) => localStorage.removeItem(key), DEMO_KEY);
-      await page.reload({ waitUntil: "networkidle0" });
       await page.waitForSelector("h1", { timeout: 15000 });
       await new Promise((r) => setTimeout(r, 900));
 
@@ -84,6 +107,7 @@ async function main() {
         await new Promise((r) => setTimeout(r, 600));
       }
 
+      await mkdir(path.dirname(path.join(OUT, shot.file)), { recursive: true });
       await page.screenshot({
         path: path.join(OUT, shot.file),
         type: "png",

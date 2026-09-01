@@ -1,0 +1,386 @@
+// Testes de navegador contra o build estático. Cobre o fluxo de quem codifica:
+// abrir, navegar, responder, salvar, exportar, importar planilha, trocar idioma.
+//
+//   bun run build && python3 -m http.server 3100 -d out
+//   bun run test:e2e
+//
+// Usa o Chrome instalado via puppeteer-core. Falha com código 1 se algum passo quebrar.
+
+import path from "node:path";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import * as XLSX from "xlsx";
+import puppeteer from "puppeteer-core";
+import { buildTemplateWorkbook } from "../lib/round-import.js";
+
+const BASE = process.env.E2E_BASE || "http://127.0.0.1:3100";
+const CHROME =
+  process.env.CHROME_PATH || "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+
+const results = [];
+let page;
+
+function check(name, ok, detail = "") {
+  results.push({ name, ok, detail });
+  console.log(`${ok ? "✓" : "✗"} ${name}${detail && !ok ? `  → ${detail}` : ""}`);
+}
+
+async function expectEq(name, actual, expected) {
+  const ok = JSON.stringify(actual) === JSON.stringify(expected);
+  check(name, ok, ok ? "" : `esperado ${JSON.stringify(expected)}, veio ${JSON.stringify(actual)}`);
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Helpers de página --------------------------------------------------------
+
+async function goto(url, { clear = false } = {}) {
+  await page.goto(`${BASE}${url}`, { waitUntil: "networkidle0" });
+  if (clear) {
+    await page.evaluate(() => localStorage.clear());
+    await page.reload({ waitUntil: "networkidle0" });
+  }
+  await page.waitForSelector("h1");
+  await sleep(400);
+}
+
+const status = () =>
+  page.evaluate(() => document.querySelector('[class*="statusRow"]')?.innerText.replace(/\s+/g, " ") || "");
+
+const h1 = () => page.evaluate(() => document.querySelector("h1")?.textContent.trim());
+
+async function clickButton(text) {
+  const handle = await page.evaluateHandle(
+    (t) => [...document.querySelectorAll("button, a")].find((b) => b.textContent.trim() === t),
+    text,
+  );
+  const el = handle.asElement();
+  if (!el) throw new Error(`botão "${text}" não encontrado`);
+  await el.click();
+  await sleep(250);
+}
+
+async function fieldRow(header) {
+  return page.evaluateHandle(
+    (h) =>
+      [...document.querySelectorAll('[class*="fieldRow"]')].find(
+        (r) => r.querySelector('[class*="fieldKey"]')?.textContent.trim().startsWith(h),
+      ),
+    header,
+  );
+}
+
+async function setBoolean(header, yes) {
+  const row = await fieldRow(header);
+  const btn = await row.evaluateHandle((r, y) => [...r.querySelectorAll("button")][y ? 1 : 0], yes);
+  await btn.asElement().click();
+  await sleep(150);
+}
+
+async function booleanState(header) {
+  const row = await fieldRow(header);
+  return row.evaluate((r) => {
+    const btns = [...r.querySelectorAll("button")];
+    return btns.map((b) => b.getAttribute("aria-checked"));
+  });
+}
+
+// Captura do que iria para a área de transferência e para download.
+async function installSpies() {
+  await page.evaluateOnNewDocument(() => {
+    window.__clip = null;
+    window.__blob = null;
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText: async (t) => { window.__clip = t; } },
+      configurable: true,
+    });
+    const orig = URL.createObjectURL.bind(URL);
+    URL.createObjectURL = (blob) => {
+      blob.text().then((t) => { window.__blob = { type: blob.type, text: t }; });
+      return orig(blob);
+    };
+    // Não abre o diálogo real de download no headless.
+    HTMLAnchorElement.prototype.click = function () {};
+  });
+}
+
+// Cenários -----------------------------------------------------------------
+
+async function scenarioHome() {
+  console.log("\n— Página inicial e idioma");
+  await goto("/", { clear: true });
+  await expectEq("abre em português", await h1(), "Codificação manual sem a planilha aberta do lado.");
+  await expectEq("html lang pt-BR", await page.evaluate(() => document.documentElement.lang), "pt-BR");
+
+  await clickButton("EN");
+  await expectEq("switch troca o título", await h1(), "Manual coding, without the spreadsheet open beside you.");
+  await expectEq("html lang en", await page.evaluate(() => document.documentElement.lang), "en");
+  await expectEq("CTA em inglês", await page.evaluate(() => document.querySelector(".site-nav-cta .btn").textContent.trim()), "Start coding");
+
+  await page.reload({ waitUntil: "networkidle0" });
+  await sleep(400);
+  await expectEq("idioma persiste no reload", await h1(), "Manual coding, without the spreadsheet open beside you.");
+
+  await clickButton("PT");
+  await expectEq("volta para português", await h1(), "Codificação manual sem a planilha aberta do lado.");
+
+  const links = await page.evaluate(() => [...document.querySelectorAll('a[href*="/demo/"]')].length);
+  check("links para /demo/ presentes", links >= 2, `${links}`);
+}
+
+async function scenarioDemoNavigation() {
+  console.log("\n— Demo: navegação e estado");
+  await goto("/demo/", { clear: true });
+  check("abre no registro 005 já em andamento", (await status()).startsWith("Registro 005/30"), await status());
+  check("17/30 revisados", (await status()).includes("17/30 revisados · 57%"), await status());
+
+  await clickButton("Próxima");
+  check("Próxima → 006", (await status()).startsWith("Registro 006/30"), await status());
+  await page.keyboard.press("ArrowLeft");
+  await sleep(250);
+  check("seta esquerda → 005", (await status()).startsWith("Registro 005/30"), await status());
+  await page.keyboard.press("ArrowRight");
+  await sleep(250);
+  check("seta direita → 006", (await status()).startsWith("Registro 006/30"), await status());
+
+  // Select do navegador
+  await page.select('select[aria-label="Selecionar registro"]', "17");
+  await sleep(250);
+  check("select vai ao registro 018", (await status()).startsWith("Registro 018/30"), await status());
+
+  const locked = await page.evaluate(() => document.querySelectorAll('[class*="lockedBadge"]').length);
+  await expectEq("4 variáveis travadas sem controle", locked, 4);
+  const lockedInputs = await page.evaluate(
+    () => [...document.querySelectorAll('[class*="fieldRowLocked"]')].filter((r) => r.querySelector("button, select, textarea, input")).length,
+  );
+  await expectEq("nenhuma travada tem input", lockedInputs, 0);
+}
+
+async function scenarioDemoCoding() {
+  console.log("\n— Demo: codificar, salvar, revisar");
+  await goto("/demo/", { clear: true });
+  await page.select('select[aria-label="Selecionar registro"]', "17"); // 018, não revisado
+  await sleep(250);
+
+  await expectEq("booleana começa em Não", await booleanState("Marco_Apelo"), ["true", "false"]);
+  await setBoolean("Marco_Apelo", true);
+  await expectEq("clique em Sim marca Sim", await booleanState("Marco_Apelo"), ["false", "true"]);
+
+  const row = await fieldRow("Assunto_1");
+  const sel = await row.$("select");
+  await sel.select("Saúde e Bem-estar");
+  await sleep(200);
+
+  const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("codifica-colab:demo:v1")));
+  await expectEq("rascunho salvo no localStorage", [saved.records[17].Marco_Apelo, saved.records[17].Assunto_1, saved.index], [true, "Saúde e Bem-estar", 17]);
+
+  await page.reload({ waitUntil: "networkidle0" });
+  await sleep(500);
+  check("reload mantém o registro", (await status()).startsWith("Registro 018/30"), await status());
+  await expectEq("reload mantém a resposta", await booleanState("Marco_Apelo"), ["false", "true"]);
+
+  await page.keyboard.press("Enter");
+  await sleep(350);
+  check("Enter marca revisado e avança", (await status()).startsWith("Registro 019/30") && (await status()).includes("18/30 revisados"), await status());
+
+  await page.keyboard.press("ArrowLeft");
+  await sleep(250);
+  const doneLabel = await page.evaluate(() => [...document.querySelectorAll("footer button")].pop().textContent.trim());
+  await expectEq("botão mostra Revisado · avançar", doneLabel, "Revisado · avançar");
+}
+
+async function scenarioExport() {
+  console.log("\n— Demo: copiar valores e exportar");
+  await goto("/demo/", { clear: true });
+
+  await clickButton("Copiar valores");
+  const clip = await page.evaluate(() => window.__clip);
+  const lines = clip.split("\n");
+  await expectEq("TSV tem 30 linhas", lines.length, 30);
+  await expectEq("cada linha tem 24 colunas (28 − 4 automáticas/herdadas)", new Set(lines.map((l) => l.split("\t").length)).size === 1 && lines[0].split("\t").length, 24);
+  check("registro 005 sai com Assunto e TRUE em Marco_Numeros", lines[4].startsWith("Segurança Urbana\tGestão Municipal\tTRUE\tFALSE\tTRUE\tTRUE"), lines[4].slice(0, 80));
+  check("registro 018 (não codificado) sai só FALSE/vazio", /^\t\tFALSE\tFALSE(\tFALSE)+\t$/.test(lines[17]), lines[17]);
+  check("dica de colagem aponta O→AL", await page.evaluate(() => document.querySelector('[class*="pasteHint"]').innerText.includes("O→AL")));
+
+  await page.select('[class*="formatPicker"] select', "0/1");
+  await sleep(200);
+  await clickButton("Copiar valores");
+  const clip01 = await page.evaluate(() => window.__clip);
+  check("formato 0/1 troca TRUE por 1", clip01.split("\n")[4].includes("\t1\t0\t1\t1") && !clip01.includes("TRUE"), clip01.split("\n")[4].slice(0, 60));
+
+  await clickButton("Copiar com cabeçalho");
+  const withHeader = await page.evaluate(() => window.__clip);
+  await expectEq("cabeçalho começa em Assunto_1 e termina em OBS", [withHeader.split("\n")[0].split("\t")[0], withHeader.split("\n")[0].split("\t").pop(), withHeader.split("\n").length], ["Assunto_1", "OBS", 31]);
+
+  await clickButton("CSV");
+  await sleep(400);
+  const csv = await page.evaluate(() => window.__blob);
+  // Blob.text() remove o BOM na decodificação; o arquivo em disco o mantém.
+  check("CSV baixado com cabeçalho e 30 linhas", csv && csv.type.startsWith("text/csv") && csv.text.startsWith("Assunto_1,Assunto_2,") && csv.text.trim().split("\n").length === 31, csv?.text.slice(0, 40));
+
+  await clickButton("Baixar backup");
+  await sleep(400);
+  const backup = await page.evaluate(() => window.__blob);
+  const parsed = JSON.parse(backup.text);
+  await expectEq("backup JSON tem 30 registros e 17 revisados", [parsed.records.length, Object.keys(parsed.reviewed).length, parsed.storageKey], [30, 17, "codifica-colab:demo:v1"]);
+  check("backup só tem campos codificados", !("texto" in parsed.records[0]) && "Marco_Numeros" in parsed.records[0]);
+}
+
+async function scenarioRestore() {
+  console.log("\n— Demo: restaurar");
+  await goto("/demo/", { clear: true });
+  page.once("dialog", (d) => d.accept());
+  await clickButton("Restaurar");
+  await sleep(400);
+  check("Restaurar zera progresso e volta ao 001", (await status()).startsWith("Registro 001/30") && (await status()).includes("0/30 revisados"), await status());
+}
+
+async function scenarioImporter() {
+  console.log("\n— Importar planilha própria");
+  const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
+  const file = path.join(dir, "minha rodada.xlsx");
+  await writeFile(file, Buffer.from(XLSX.write(buildTemplateWorkbook(), { type: "array", bookType: "xlsx" })));
+
+  await goto("/codificar/", { clear: true });
+  const input = await page.$('input[type=file]');
+  await input.uploadFile(file);
+  await sleep(1200);
+
+  await expectEq("abre com o nome do arquivo", await h1(), "minha rodada");
+  check("2 unidades, começa no 001", (await status()).startsWith("Registro 001/2"), await status());
+  check("dica de colagem E→H (4 colunas de item antes)", await page.evaluate(() => document.querySelector('[class*="pasteHint"]').innerText.includes("E→H")));
+
+  const groups = await page.evaluate(() => [...document.querySelectorAll('[class*="fieldGroup"] h2')].map((h) => h.textContent));
+  await expectEq("grupos do modelo", groups, ["Caracterização", "Enquadramento", "Observação"]);
+
+  const reviewBtn = async () => page.evaluate(() => { const b = [...document.querySelectorAll("footer button")].pop(); return { text: b.textContent.trim(), disabled: b.disabled }; });
+  await expectEq("obrigatória em branco trava o revisado", await reviewBtn(), { text: "1 obrigatória em branco", disabled: true });
+
+  await page.keyboard.press("Enter");
+  await sleep(250);
+  check("Enter com obrigatória vazia não avança", (await status()).startsWith("Registro 001/2"), await status());
+
+  const row = await fieldRow("Assunto");
+  await (await row.$("select")).select("Saúde");
+  await sleep(200);
+  await expectEq("preencher obrigatória libera o botão", await reviewBtn(), { text: "Marcar revisado (Enter)", disabled: false });
+
+  const multiRow = await fieldRow("Recursos");
+  const boxes = await multiRow.$$('input[type=checkbox]');
+  await boxes[0].click(); await boxes[2].click();
+  await sleep(200);
+  await clickButton("Copiar valores");
+  const clip = await page.evaluate(() => window.__clip);
+  check("multi_select sai separado por | na ordem do livro", clip.split("\n")[0].split("\t")[2] === "Números|Autoridade", clip.split("\n")[0]);
+
+  await page.keyboard.press("Enter");
+  await sleep(300);
+  check("revisado avança para 002 com 1/2", (await status()).startsWith("Registro 002/2") && (await status()).includes("1/2 revisados"), await status());
+
+  await clickButton("Trocar rodada");
+  await sleep(300);
+  const storedTitle = await page.evaluate(() => document.querySelector(".stored-round h3")?.textContent);
+  await expectEq("rodada aparece na lista do navegador", storedTitle, "minha rodada");
+  await clickButton("Continuar");
+  await sleep(600);
+  check("Continuar retoma no registro 002", (await status()).startsWith("Registro 002/2"), await status());
+
+  await goto("/codificar/");
+  await clickButton("Baixar modelo .xlsx");
+  await sleep(400);
+  const tpl = await page.evaluate(() => window.__blob);
+  check("modelo .xlsx é gerado no navegador", tpl && tpl.type.includes("spreadsheet") || tpl?.type.includes("octet"), tpl?.type);
+}
+
+async function scenarioImporterErrors() {
+  console.log("\n— Importar: erros legíveis");
+  const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
+  const bad = path.join(dir, "sem-variables.xlsx");
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([{ texto: "x" }]), "items");
+  await writeFile(bad, Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" })));
+
+  await goto("/codificar/", { clear: true });
+  await (await page.$('input[type=file]')).uploadFile(bad);
+  await sleep(800);
+  const msg = await page.evaluate(() => document.querySelector('[role="alert"]')?.textContent || "");
+  check("erro em português menciona a aba que falta", msg.includes('"variables"') && msg.includes("Encontrei"), msg);
+
+  await clickButton("EN");
+  await (await page.$('input[type=file]')).uploadFile(bad);
+  await sleep(800);
+  const msgEn = await page.evaluate(() => document.querySelector('[role="alert"]')?.textContent || "");
+  check("mesmo erro traduzido em inglês", msgEn.includes('"variables"') && msgEn.includes("Found"), msgEn);
+}
+
+async function scenarioEnglishDemo() {
+  console.log("\n— Demo em inglês");
+  await goto("/demo/", { clear: true });
+  await clickButton("EN");
+  await sleep(500);
+  await expectEq("título da demo em inglês", await h1(), "Framing Analysis: Vila Aurora");
+  check("status em inglês", (await status()).includes("Record 005/30") && (await status()).includes("reviewed"), await status());
+  const q = await page.evaluate(() => document.querySelector('[class*="fieldQuestion"]').textContent);
+  await expectEq("primeira pergunta em inglês", q, "Does the message contain attached media?");
+  const meta = await page.evaluate(() => [...document.querySelectorAll('[class*="metadata"] span')].map((s) => s.textContent));
+  await expectEq("metadados em inglês", meta.slice(0, 3), ["ID", "Date", "Time"]);
+  const val = await (await fieldRow("Assunto_1")).evaluate((r) => r.querySelector("select").value);
+  await expectEq("valor codificado traduzido", val, "Public safety");
+  const keys = await page.evaluate(() => Object.keys(localStorage).filter((k) => k.includes("demo")));
+  check("storage separado por idioma", keys.includes("codifica-colab:demo:en:v1"), keys.join(","));
+
+  await clickButton("PT");
+  await sleep(500);
+  await expectEq("volta para a demo em português", await h1(), "Análise de Enquadramento: Vila Aurora");
+}
+
+// Execução ------------------------------------------------------------------
+
+async function main() {
+  const browser = await puppeteer.launch({
+    executablePath: CHROME,
+    headless: true,
+    defaultViewport: { width: 1440, height: 900 },
+    args: ["--hide-scrollbars"],
+  });
+  page = await browser.newPage();
+  const pageErrors = [];
+  page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 160)));
+  await installSpies();
+
+  const scenarios = [
+    scenarioHome,
+    scenarioDemoNavigation,
+    scenarioDemoCoding,
+    scenarioExport,
+    scenarioRestore,
+    scenarioImporter,
+    scenarioImporterErrors,
+    scenarioEnglishDemo,
+  ];
+
+  for (const run of scenarios) {
+    try {
+      await run();
+    } catch (err) {
+      check(`${run.name} (exceção)`, false, String(err.message || err).slice(0, 200));
+    }
+  }
+
+  check("nenhum erro de JavaScript na página", pageErrors.length === 0, pageErrors.join(" | "));
+
+  await browser.close();
+
+  const failed = results.filter((r) => !r.ok);
+  console.log(`\n${results.length - failed.length}/${results.length} verificações passaram`);
+  if (failed.length) {
+    console.log("Falhas:");
+    failed.forEach((f) => console.log(`  ✗ ${f.name}${f.detail ? `  → ${f.detail}` : ""}`));
+    process.exit(1);
+  }
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

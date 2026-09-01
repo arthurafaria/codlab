@@ -9,7 +9,10 @@
     "build": "next build",
     "start": "next start",
     "generate:data": "bun scripts/generate_data.mjs",
-    "generate:texts": "bun scripts/generate_texts.mjs"
+    "generate:texts": "bun scripts/generate_texts.mjs",
+    "test": "bun test",
+    "test:e2e": "bun scripts/e2e.mjs",
+    "shots": "bun scripts/shots.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.1.0",

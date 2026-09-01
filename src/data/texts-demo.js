@@ -8,7 +8,7 @@
 
 export const project = {
   eyebrow: "Projeto Vitrine · amostra demonstrativa",
-  title: "Análise de Enquadramento — Vila Aurora",
+  title: "Análise de Enquadramento: Vila Aurora",
   storageKey: "codifica-colab:demo:v1",
   // Estado inicial da demo: abre já em andamento e num registro codificado, para
   // mostrar a ferramenta em uso em vez de um formulário vazio.
@@ -19,7 +19,7 @@ const canal = {
   moradores: "Moradores · Vila Aurora",
   bairro: "Bairro Novo Horizonte",
   comercio: "Comércio Central AV",
-  escola: "Escola Meridiano — Responsáveis",
+  escola: "Escola Meridiano · Responsáveis",
   time: "Torcida Aurora FC",
   familia: "Família Andrade",
 };

@@ -1,7 +1,7 @@
 import "@/app/_legacy-platform.css";
 // Plataforma generalista original (orientador + codificadores, banco, uploads).
 // Movida da home para /platform: a home agora é o coder de tela única.
-import ProjectCreator from "../project-creator";
+import ProjectCreator from "./project-creator";
 import Badge from "@/components/ui/badge";
 import Wordmark from "@/components/ui/wordmark";
 

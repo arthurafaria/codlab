@@ -188,7 +188,7 @@ a.wordmark:hover em {
 }
 
 .btn:active {
-  transform: translateY(1px);
+  transform: scale(0.96);
 }
 
 .btn-primary {
@@ -248,6 +248,47 @@ a.wordmark:hover em {
 
 .arrow-link:hover span {
   transform: translateX(4px);
+}
+
+/* Seletor de idioma: dois botões numa pílula, o ativo em tinta escura. */
+.lang-switch {
+  display: inline-flex;
+  padding: 3px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--pill);
+  background: var(--paper);
+}
+
+.lang-switch button {
+  min-width: 40px;
+  min-height: 30px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: var(--pill);
+  background: transparent;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition:
+    background-color 140ms,
+    color 140ms,
+    transform 140ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.lang-switch button:hover {
+  color: var(--ink);
+}
+
+.lang-switch button:active {
+  transform: scale(0.96);
+}
+
+.lang-switch button.is-active {
+  background: var(--dark);
+  color: #fff;
 }
 
 /* ---------- Estrutura ---------- */
@@ -590,6 +631,125 @@ a.wordmark:hover em {
   display: grid;
   gap: 10px;
   font-size: 0.92rem;
+}
+
+.site-footer-about {
+  display: grid;
+  gap: 14px;
+  max-width: 44ch;
+}
+
+.hero-card-meta {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.hero-card-bar strong {
+  font-variant-numeric: tabular-nums;
+}
+
+.band-head-tight {
+  margin-bottom: 0;
+}
+
+.overline-on-orange {
+  color: var(--on-orange);
+  opacity: 0.7;
+}
+
+.overline-on-dark {
+  color: #8b8d9e;
+}
+
+.band-cta {
+  margin-top: 28px;
+}
+
+/* ---------- Importador ---------- */
+
+.importer {
+  padding: 56px 0 24px;
+}
+
+.importer-head {
+  margin-bottom: 32px;
+}
+
+.importer-title {
+  font-size: clamp(1.9rem, 4vw, 2.6rem);
+}
+
+.importer-main,
+.importer-aside {
+  display: grid;
+  gap: 18px;
+  align-content: start;
+}
+
+.importer-aside {
+  gap: 22px;
+}
+
+.importer-aside .prose,
+.spec-list {
+  font-size: 0.94rem;
+}
+
+.spec-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 4px;
+}
+
+.dropzone-title {
+  font-weight: 650;
+}
+
+.dropzone-hint {
+  font-size: 0.92rem;
+}
+
+.visually-hidden-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.stored-rounds {
+  display: grid;
+  gap: 12px;
+}
+
+/* Cartão de rodada guardada: raio externo 16 = raio dos botões internos + padding não
+   se aplica (botões são pílulas), então o cartão segue o raio grande do sistema. */
+.stored-round {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px;
+}
+
+.stored-round-copy {
+  min-width: 0;
+}
+
+.stored-round-copy h3 {
+  font-size: 0.98rem;
+}
+
+.stored-round-copy .prose {
+  font-size: 0.88rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.stored-round-actions {
+  display: flex;
+  gap: 8px;
 }
 
 /* ---------- Formulário / importador ---------- */

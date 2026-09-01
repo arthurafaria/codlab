@@ -1,14 +1,18 @@
+"use client";
+
 import Link from "next/link";
 import Wordmark from "./ui/wordmark";
+import { useT, LangSwitch } from "@/lib/i18n";
 
 export const REPO_URL = "https://github.com/arthurafaria/codlab";
 export const LAB_URL = "https://colab.meme";
 
 export function SiteNav({ active }) {
+  const t = useT();
   return (
     <nav className="site-nav">
       <div className="shell site-nav-inner">
-        <Link href="/" className="wordmark" aria-label="CodLAB — início">
+        <Link href="/" className="wordmark" aria-label={t.nav.home}>
           <span aria-hidden="true">
             <em>Cod</em>L
             <svg viewBox="0 0 14 13" width="14" height="13" focusable="false">
@@ -19,20 +23,21 @@ export function SiteNav({ active }) {
         </Link>
 
         <div className="site-nav-links">
-          <Link href="/#como-funciona" aria-current={active === "como" ? "page" : undefined}>
-            Como funciona
+          <Link href="/#como-funciona" aria-current={active === "how" ? "page" : undefined}>
+            {t.nav.how}
           </Link>
           <Link href="/demo/" aria-current={active === "demo" ? "page" : undefined}>
-            Exemplo
+            {t.nav.demo}
           </Link>
           <a href={REPO_URL} target="_blank" rel="noreferrer">
-            Código
+            {t.nav.code}
           </a>
         </div>
 
         <div className="site-nav-cta">
+          <LangSwitch />
           <Link className="btn btn-primary btn-sm" href="/codificar/">
-            Codificar
+            {t.nav.cta}
           </Link>
         </div>
       </div>
@@ -41,25 +46,23 @@ export function SiteNav({ active }) {
 }
 
 export function SiteFooter() {
+  const t = useT();
   return (
     <footer className="site-footer">
       <div className="shell site-footer-inner">
-        <div style={{ display: "grid", gap: 14, maxWidth: "44ch" }}>
-          <Wordmark className="footer-mark" />
-          <p className="prose">
-            Ferramenta de codificação manual para análise de conteúdo. Desenvolvida no coLAB/UFF —
-            Laboratório de Pesquisa em Comunicação, Culturas Políticas e Economia da Colaboração.
-          </p>
+        <div className="site-footer-about">
+          <Wordmark />
+          <p className="prose">{t.footer.about}</p>
         </div>
 
         <div className="footer-links">
-          <Link href="/demo/">Rodada de exemplo</Link>
-          <Link href="/codificar/">Carregar planilha</Link>
+          <Link href="/demo/">{t.footer.demo}</Link>
+          <Link href="/codificar/">{t.footer.load}</Link>
           <a href={REPO_URL} target="_blank" rel="noreferrer">
-            Repositório
+            {t.footer.repo}
           </a>
           <a href={LAB_URL} target="_blank" rel="noreferrer">
-            coLAB/UFF
+            {t.footer.lab}
           </a>
         </div>
       </div>
