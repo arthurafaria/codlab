@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import Wordmark from "./ui/wordmark";
+import Wordmark, { BrandMark } from "./ui/wordmark";
 import { useT, LangSwitch } from "@/lib/i18n";
+import { ThemeSwitch } from "@/lib/theme";
 
 export const REPO_URL = "https://github.com/arthurafaria/codlab";
 export const LAB_URL = "https://colab.meme";
@@ -13,13 +14,8 @@ export function SiteNav({ active }) {
     <nav className="site-nav">
       <div className="shell site-nav-inner">
         <Link href="/" className="wordmark" aria-label={t.nav.home}>
-          <span aria-hidden="true">
-            <em>Cod</em>L
-            <svg viewBox="0 0 14 13" width="14" height="13" focusable="false">
-              <path d="M7 0 14 13H0Z" fill="currentColor" />
-            </svg>
-            B
-          </span>
+          <BrandMark />
+          <span aria-hidden="true">CodLAB</span>
         </Link>
 
         <div className="site-nav-links">
@@ -35,6 +31,7 @@ export function SiteNav({ active }) {
         </div>
 
         <div className="site-nav-cta">
+          <ThemeSwitch label={t.nav.theme} />
           <LangSwitch />
           <Link className="btn btn-primary btn-sm" href="/codificar/">
             {t.nav.cta}

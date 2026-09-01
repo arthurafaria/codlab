@@ -1,8 +1,8 @@
 // Livro de Códigos — AMOSTRA DEMONSTRATIVA (fictícia).
 //
-// Espelha exatamente a estrutura do livro de códigos real: mesmos grupos, mesmos
-// tipos de variável, mesma mecânica de colunas automatizadas (locked) e herdadas
-// (inherited). Só os nomes e o conteúdo são fantasia — nada aqui é dado de pesquisa.
+// Mesma estrutura de um livro de códigos real: grupos, seleção, booleana e
+// texto livre. Só os nomes e o conteúdo são fantasia; nada aqui é dado de
+// pesquisa.
 //
 // Existe para apresentação institucional: mostra a plataforma funcionando sem
 // expor telefone, grupo ou material codificado de participante real.
@@ -35,51 +35,11 @@ const ASSUNTOS = [
 ];
 
 // A ORDEM deste array é a ordem das colunas na planilha — não reordene.
+// Toda variável aqui é respondível: a demo não usa `locked` nem `inherited`.
+// Os dois recursos continuam na ferramenta, para quem declarar na própria
+// planilha (colunas `locked` e `inherited` da aba variables).
 export const editableFields = [
-  // --- Conjunto 1: Herdadas (pré-preenchidas) ---
-  {
-    key: "Midia_Bin",
-    header: "Midia",
-    group: "Origem da mensagem",
-    type: "boolean",
-    locked: true,
-    lockedNote: "será automatizada · não preencher",
-    question: "A mensagem contém mídia anexada?",
-    help: "AUTOMATIZADA. Não codificar. Preenchida por processo automático; fica no bloco só para o alinhamento das colunas.",
-  },
-  {
-    key: "Perfil_Emissor",
-    header: "Perfil_Emissor",
-    group: "Origem da mensagem",
-    type: "select",
-    locked: true,
-    lockedNote: "será automatizada · não preencher",
-    question: "Perfil declarado do canal de origem",
-    help: "AUTOMATIZADA. Não codificar. Derivada dos metadados do canal.",
-    options: ["Aberto", "Restrito"],
-  },
-  {
-    key: "Categoria_Fonte",
-    header: "Categoria_Fonte",
-    group: "Origem da mensagem",
-    type: "select",
-    locked: true,
-    lockedNote: "será automatizada · não preencher",
-    question: "Categoria da fonte informacional do link",
-    help: "AUTOMATIZADA. Não codificar. Classificada por processo automático a partir do domínio.",
-    options: ["Veículo Jornalístico", "Plataformas e Mensageria", "Institucional", "Não identificada"],
-  },
-  {
-    key: "Categoria_Fonte_2",
-    header: "Categoria_Fonte_2",
-    group: "Não preencher",
-    inherited: true,
-    type: "text",
-    question: "Categoria da fonte (coluna herdada)",
-    help: "Herdada da etapa anterior. Aparece só como leitura, para conferência.",
-  },
-
-  // --- Conjunto 2: Caracterização ---
+  // --- Caracterização ---
   {
     key: "Assunto_1",
     header: "Assunto_1",
@@ -115,7 +75,7 @@ export const editableFields = [
     help: "Marque quando um grupo é o sujeito da mensagem — não quando aparece apenas de passagem.",
   },
 
-  // --- Conjunto 3: Enquadramento ---
+  // --- Enquadramento ---
   {
     key: "Marco_Imprecisao",
     header: "Marco_Imprecisao",
@@ -155,16 +115,6 @@ export const editableFields = [
     type: "boolean",
     question: "Apresenta apenas um lado da questão?",
     help: "Havendo controvérsia reconhecida, a mensagem trata só uma posição como existente ou legítima.",
-  },
-  {
-    key: "Marco_Recorte",
-    header: "Marco_Recorte",
-    group: "Enquadramento",
-    type: "boolean",
-    locked: true,
-    lockedNote: "variável descontinuada · não preencher",
-    question: "Seleciona evidências convenientes?",
-    help: "DESCONTINUADA nesta rodada. Não codificar. Permanece no bloco para não deslocar as colunas seguintes.",
   },
   {
     key: "Marco_Polarizacao",
@@ -223,7 +173,7 @@ export const editableFields = [
     help: "Apoia-se em especialista, cargo, instituição ou 'fonte interna' como garantia do que afirma.",
   },
 
-  // --- Conjunto 4: Efeitos ---
+  // --- Efeitos ---
   {
     key: "Reacao_Alarme",
     header: "Reacao_Alarme",

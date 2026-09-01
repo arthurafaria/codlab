@@ -32,6 +32,12 @@ async function expectEq(name, actual, expected) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// O Chrome headless não garante o esquema de cor do sistema. Fixar deixa o
+// teste determinístico e ainda permite exercitar o caminho "seguir o sistema".
+async function prefer(scheme) {
+  await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
+}
+
 // Helpers de página --------------------------------------------------------
 
 async function goto(url, { clear = false } = {}) {
@@ -148,12 +154,21 @@ async function scenarioDemoNavigation() {
   await sleep(250);
   check("select vai ao registro 018", (await status()).startsWith("Registro 018/30"), await status());
 
-  const locked = await page.evaluate(() => document.querySelectorAll('[class*="lockedBadge"]').length);
-  await expectEq("4 variáveis travadas sem controle", locked, 4);
-  const lockedInputs = await page.evaluate(
-    () => [...document.querySelectorAll('[class*="fieldRowLocked"]')].filter((r) => r.querySelector("button, select, textarea, input")).length,
-  );
-  await expectEq("nenhuma travada tem input", lockedInputs, 0);
+  const shape = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('[class*="fieldRow"]')];
+    return {
+      linhas: rows.length,
+      travadas: document.querySelectorAll('[class*="lockedBadge"]').length,
+      semControle: rows.filter((r) => !r.querySelector("button, select, textarea, input")).length,
+      herdadas: document.querySelectorAll('[class*="inheritedStrip"]').length,
+    };
+  });
+  await expectEq("23 linhas, todas respondíveis, nenhuma travada", shape, {
+    linhas: 23,
+    travadas: 0,
+    semControle: 0,
+    herdadas: 0,
+  });
 }
 
 async function scenarioDemoCoding() {
@@ -197,10 +212,16 @@ async function scenarioExport() {
   const clip = await page.evaluate(() => window.__clip);
   const lines = clip.split("\n");
   await expectEq("TSV tem 30 linhas", lines.length, 30);
-  await expectEq("cada linha tem 24 colunas (28 − 4 automáticas/herdadas)", new Set(lines.map((l) => l.split("\t").length)).size === 1 && lines[0].split("\t").length, 24);
+  await expectEq("toda linha tem as mesmas 23 colunas", new Set(lines.map((l) => l.split("\t").length)).size === 1 && lines[0].split("\t").length, 23);
   check("registro 005 sai com Assunto e TRUE em Marco_Numeros", lines[4].startsWith("Segurança Urbana\tGestão Municipal\tTRUE\tFALSE\tTRUE\tTRUE"), lines[4].slice(0, 80));
-  check("registro 018 (não codificado) sai só FALSE/vazio", /^\t\tFALSE\tFALSE(\tFALSE)+\t$/.test(lines[17]), lines[17]);
-  check("dica de colagem aponta O→AL", await page.evaluate(() => document.querySelector('[class*="pasteHint"]').innerText.includes("O→AL")));
+  const cols18 = lines[17].split("\t");
+  check(
+    "registro 018 (não codificado) sai vazio nas seleções e FALSE nas booleanas",
+    cols18.length === 23 && cols18[0] === "" && cols18[22] === "" && cols18.filter((v) => v === "FALSE").length === 20,
+    lines[17],
+  );
+  const hint = await page.evaluate(() => document.querySelector('[class*="pasteHint"]').innerText);
+  check("dica aponta I→AE e não fala em colunas automáticas", hint.includes("I→AE") && !hint.includes("automáticas"), hint);
 
   await page.select('[class*="formatPicker"] select', "0/1");
   await sleep(200);
@@ -313,6 +334,77 @@ async function scenarioImporterErrors() {
   check("mesmo erro traduzido em inglês", msgEn.includes('"variables"') && msgEn.includes("Found"), msgEn);
 }
 
+async function scenarioTheme() {
+  console.log("\n— Tema claro e escuro");
+  await goto("/", { clear: true });
+
+  const read = () =>
+    page.evaluate(() => {
+      const cs = getComputedStyle(document.body);
+      return {
+        attr: document.documentElement.getAttribute("data-theme"),
+        bg: cs.backgroundColor,
+        fg: cs.color,
+        saved: localStorage.getItem("codlab:theme"),
+      };
+    });
+
+  const claro = await read();
+  await expectEq("sem escolha, nenhum data-theme no html", claro.attr, null);
+  check("segue o sistema em claro", claro.bg === "rgb(251, 251, 250)", claro.bg);
+
+  await prefer("dark");
+  await sleep(250);
+  const sistemaEscuro = await read();
+  await expectEq("sem escolha, segue o sistema em escuro", [sistemaEscuro.attr, sistemaEscuro.bg], [null, "rgb(13, 26, 32)"]);
+  await prefer("light");
+  await sleep(250);
+
+  const botao = await page.$(".theme-switch");
+  check("botão de tema existe na navegação", !!botao);
+  await botao.click();
+  await sleep(400);
+
+  const escuro = await read();
+  await expectEq("clique marca data-theme=dark e salva", [escuro.attr, escuro.saved], ["dark", "dark"]);
+  check("escolha vence o sistema claro", escuro.bg === "rgb(13, 26, 32)", escuro.bg);
+  check("texto claro sobre o escuro", escuro.fg === "rgb(227, 234, 237)", escuro.fg);
+
+  const contraste = await page.evaluate(() => {
+    const lum = (c) => {
+      const [r, g, b] = c.match(/[\d.]+/g).slice(0, 3).map((v) => {
+        const s = v / 255;
+        return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    const cs = getComputedStyle(document.body);
+    const a = lum(cs.color) + 0.05;
+    const b = lum(cs.backgroundColor) + 0.05;
+    return Math.round((Math.max(a, b) / Math.min(a, b)) * 10) / 10;
+  });
+  check(`contraste do corpo no escuro passa em AAA (${contraste}:1)`, contraste >= 7, String(contraste));
+
+  await page.reload({ waitUntil: "networkidle0" });
+  await sleep(400);
+  const depois = await read();
+  await expectEq("escolha sobrevive ao reload, sem piscar", depois.attr, "dark");
+
+  await goto("/demo/");
+  const demoEscura = await page.evaluate(() => ({
+    attr: document.documentElement.getAttribute("data-theme"),
+    root: getComputedStyle(document.querySelector('[class*="root"]')).backgroundColor,
+    caixa: getComputedStyle(document.querySelector('[class*="textBox"]')).backgroundColor,
+  }));
+  await expectEq("tela de codificação também no escuro", demoEscura.attr, "dark");
+  check("cartão do material sobe do fundo", demoEscura.caixa === "rgb(18, 35, 43)", demoEscura.caixa);
+
+  await (await page.$(".theme-switch")).click();
+  await sleep(300);
+  const volta = await read();
+  await expectEq("volta para o claro", [volta.attr, volta.saved], ["light", "light"]);
+}
+
 async function scenarioEnglishDemo() {
   console.log("\n— Demo em inglês");
   await goto("/demo/", { clear: true });
@@ -321,7 +413,7 @@ async function scenarioEnglishDemo() {
   await expectEq("título da demo em inglês", await h1(), "Framing Analysis: Vila Aurora");
   check("status em inglês", (await status()).includes("Record 005/30") && (await status()).includes("reviewed"), await status());
   const q = await page.evaluate(() => document.querySelector('[class*="fieldQuestion"]').textContent);
-  await expectEq("primeira pergunta em inglês", q, "Does the message contain attached media?");
+  await expectEq("primeira pergunta em inglês", q, "Main topic of the message");
   const meta = await page.evaluate(() => [...document.querySelectorAll('[class*="metadata"] span')].map((s) => s.textContent));
   await expectEq("metadados em inglês", meta.slice(0, 3), ["ID", "Date", "Time"]);
   const val = await (await fieldRow("Assunto_1")).evaluate((r) => r.querySelector("select").value);
@@ -344,6 +436,7 @@ async function main() {
     args: ["--hide-scrollbars"],
   });
   page = await browser.newPage();
+  await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 160)));
   await installSpies();
@@ -356,6 +449,7 @@ async function main() {
     scenarioRestore,
     scenarioImporter,
     scenarioImporterErrors,
+    scenarioTheme,
     scenarioEnglishDemo,
   ];
 

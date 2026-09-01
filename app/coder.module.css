@@ -1,29 +1,26 @@
-/* Tela de codificação — mesma paleta do site: papel branco, tinta ardósia,
-   laranja como marcação. O material-fonte fica num cartão de papel com serifada;
-   a ficha, à direita, em linhas separadas por fio. */
+/* Tela de codificação. O material-fonte fica num cartão com serifada; a ficha,
+   à direita, em linhas separadas por fio. Chave de variável e letra de coluna
+   vão em mono, porque são identificadores, não prosa.
+
+   Os nomes locais abaixo são só apelidos dos tokens globais: claro e escuro
+   trocam sozinhos, sem um segundo bloco de cores aqui. */
 
 .root {
-  --bg: #ffffff;
-  --panel: #f7f6f3;
-  --panel-2: #efeee9;
-  --line: #e4e3de;
-  --line-hover: #cfcec7;
-  --text: #2f2f41;
-  --muted: #6c6c7e;
-  --eyebrow: #f29a2e;
-  --accent: #ffb351;
-  --accent-ink: #33230a;
-  --accent-soft: #fff4e4;
-  --accent-on-soft: #8a4f00;
-  --dark: #1e2130;
-  --stop: #c0392b;
-  --stop-soft: #fdf0ee;
-  --danger: #c0392b;
+  --panel: var(--surface-2);
+  --panel-2: var(--surface-3);
+  --line-hover: var(--line-strong);
+  --text: var(--ink);
+  --muted: var(--ink-2);
+  --eyebrow: var(--on-soft);
+  --accent-ink: var(--on-accent);
+  --accent-on-soft: var(--on-soft);
+  --dark: var(--deep);
+  --danger: var(--stop);
 
   min-height: 100vh;
   background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-ui), Inter, ui-sans-serif, system-ui, sans-serif;
+  color: var(--ink);
+  font-family: var(--font-ui), "Archivo", system-ui, sans-serif;
 }
 
 .shell {
@@ -44,16 +41,17 @@
 .eyebrow {
   margin: 0 0 5px;
   color: var(--eyebrow);
-  font-family: var(--font-script), cursive;
-  font-size: 1.2rem;
-  font-weight: 700;
-  letter-spacing: 0;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 
 .title {
   margin: 0;
   font-size: clamp(1.5rem, 2.2vw, 2.05rem);
-  font-weight: 800;
+  font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.022em;
   text-wrap: balance;
@@ -99,8 +97,9 @@
 }
 
 .statusRow strong {
-  font-size: 0.98rem;
-  font-weight: 700;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.9rem;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -143,12 +142,14 @@
   border-left: 3px solid var(--accent);
   border-radius: 0 8px 8px 0;
   background: var(--accent-soft);
-  color: var(--accent-ink);
+  color: var(--ink);
   font-size: 0.88rem;
   line-height: 1.5;
 }
 
 .pasteHint strong {
+  font-family: var(--font-mono), monospace;
+  font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
 
@@ -179,12 +180,12 @@
   text-wrap: pretty;
   white-space: pre-wrap;
   word-break: break-word;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--ink);
+  background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 30px 32px;
-  box-shadow: 0 18px 44px rgba(47, 47, 65, 0.07);
+  box-shadow: var(--shadow-2);
 }
 
 .textBox a {
@@ -202,7 +203,7 @@
   border: 1px solid var(--line);
   border-radius: 12px;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--surface);
 }
 
 .previewBar {
@@ -216,8 +217,9 @@
 }
 
 .previewLabel {
+  font-family: var(--font-mono), monospace;
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--muted);
@@ -257,6 +259,11 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   background: #000;
+}
+
+.loading {
+  color: var(--muted);
+  margin-top: 16px;
 }
 
 .previewLoading {
@@ -337,18 +344,20 @@
 .metadata span {
   display: block;
   margin-bottom: 4px;
-  font-size: 0.66rem;
-  font-weight: 700;
-  letter-spacing: 0.07em;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.65rem;
+  font-weight: 500;
+  letter-spacing: 0.09em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-3);
 }
 
 .metadata strong {
   display: block;
   font-size: 0.92rem;
-  font-weight: 650;
+  font-weight: 550;
   line-height: 1.35;
+  font-variant-numeric: tabular-nums;
 }
 
 .fieldGroup {
@@ -358,8 +367,8 @@
 
 .fieldGroup h2 {
   margin: 0 0 8px;
-  font-size: 1.06rem;
-  font-weight: 750;
+  font-size: 1.04rem;
+  font-weight: 650;
   letter-spacing: -0.015em;
 }
 
@@ -383,18 +392,20 @@
   align-items: center;
   gap: 8px;
   margin-bottom: 6px;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.71rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   color: var(--eyebrow);
 }
 
 .reqMark {
+  font-family: var(--font-mono), monospace;
   font-size: 0.6rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-3);
   background: var(--panel-2);
   border-radius: 999px;
   padding: 2px 8px;
@@ -403,7 +414,7 @@
 .fieldQuestion {
   margin: 0 0 6px;
   font-size: 1rem;
-  font-weight: 650;
+  font-weight: 600;
   line-height: 1.38;
   text-wrap: pretty;
 }
@@ -436,11 +447,12 @@
 .inheritedChip span {
   display: block;
   margin-bottom: 3px;
+  font-family: var(--font-mono), monospace;
   font-size: 0.64rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--ink-3);
 }
 
 .inheritedChip strong {
@@ -451,8 +463,9 @@
 
 .inheritedTitle {
   margin: 22px 0 2px;
+  font-family: var(--font-mono), monospace;
   font-size: 0.7rem;
-  font-weight: 700;
+  font-weight: 500;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--muted);
@@ -487,10 +500,10 @@
   padding: 12px 14px;
   border: 1.5px solid var(--stop);
   border-radius: 10px;
-  background: #fff;
+  background: var(--surface);
   color: var(--stop);
-  font-weight: 800;
-  font-size: 0.86rem;
+  font-weight: 700;
+  font-size: 0.84rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
   text-align: center;
@@ -501,7 +514,7 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   text-transform: none;
-  color: #a5504a;
+  color: color-mix(in srgb, var(--stop) 78%, var(--ink));
 }
 
 /* ---- Controles ---- */
@@ -517,8 +530,8 @@
 .segmented button {
   min-height: 42px;
   border: 0;
-  background: #fff;
-  color: var(--muted);
+  background: var(--surface);
+  color: var(--ink-3);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -532,7 +545,7 @@
 .segmented button.active {
   background: var(--accent);
   color: var(--accent-ink);
-  font-weight: 700;
+  font-weight: 650;
 }
 
 .select,
@@ -540,8 +553,8 @@
   width: 100%;
   border: 1px solid var(--line-hover);
   border-radius: 10px;
-  background: #fff;
-  color: var(--text);
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   padding: 10px 13px;
 }
@@ -572,7 +585,7 @@
 .checkOption input {
   width: 17px;
   height: 17px;
-  accent-color: var(--eyebrow);
+  accent-color: var(--accent);
   cursor: pointer;
 }
 
@@ -582,8 +595,8 @@
   padding: 0 18px;
   border: 1px solid var(--line-hover);
   border-radius: 999px;
-  background: #fff;
-  color: var(--text);
+  background: var(--surface);
+  color: var(--ink);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -591,12 +604,12 @@
 }
 
 .btn:hover:not(:disabled) {
-  border-color: var(--text);
+  border-color: var(--ink-2);
   background: var(--panel);
 }
 
 .btn:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.96);
 }
 
 .btn:disabled {
@@ -612,18 +625,18 @@
   background: var(--accent);
   color: var(--accent-ink);
   font: inherit;
-  font-weight: 700;
+  font-weight: 650;
   cursor: pointer;
   transition: background-color 0.14s, box-shadow 0.14s, transform 0.14s;
 }
 
 .btnPrimary:hover:not(:disabled) {
-  background: #ffc274;
-  box-shadow: 0 6px 18px rgba(242, 154, 46, 0.28);
+  background: var(--accent-hover);
+  box-shadow: var(--shadow-lift);
 }
 
 .btnPrimary:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: scale(0.96);
 }
 
 .btnPrimary:disabled {
@@ -633,14 +646,14 @@
 }
 
 .btnDone {
-  border-color: var(--eyebrow);
+  border-color: var(--accent);
   background: var(--accent-soft);
   color: var(--accent-on-soft);
 }
 
 .btnDanger {
   color: var(--danger);
-  border-color: #e8c4bf;
+  border-color: color-mix(in srgb, var(--stop) 35%, var(--line));
 }
 
 .footerActions {

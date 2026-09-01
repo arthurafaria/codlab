@@ -35,14 +35,7 @@ const SOURCE_TYPES = {
   Restrito: "Restricted",
 };
 
-const AUTO = "AUTOMATED. Do not code. Filled in by an automated process; kept in the block only to keep the columns aligned.";
-const LOCKED_NOTE = "will be automated · do not fill in";
-
 const TEXT = {
-  Midia_Bin: { header: "Media", q: "Does the message contain attached media?", help: AUTO },
-  Perfil_Emissor: { q: "Declared profile of the source channel", help: "AUTOMATED. Do not code. Derived from channel metadata." },
-  Categoria_Fonte: { q: "Category of the link's information source", help: "AUTOMATED. Do not code. Classified automatically from the domain." },
-  Categoria_Fonte_2: { q: "Source category (inherited column)", help: "Inherited from the previous stage. Shown read-only, for reference." },
 
   Assunto_1: { q: "Main topic of the message", help: "Pick the topic that organizes the message as a whole. If two compete, the main one is the one the conclusion rests on." },
   Assunto_2: { q: "Secondary topic (if any)", help: "Fill in only when a second topic is clearly brought up. Otherwise leave blank." },
@@ -54,11 +47,6 @@ const TEXT = {
   Marco_Contestacao: { q: "Disputes established technical consensus?", help: "Explicitly rejects a settled position from a technical, scientific or regulatory field." },
   Marco_Apelo: { q: "Relies on emotional appeal?", help: "Uses fear, outrage, pity or hope as the main route to persuasion, above argument." },
   Marco_Parcialidade: { q: "Presents only one side of the issue?", help: "Where a recognized controversy exists, the message treats only one position as real or legitimate." },
-  Marco_Recorte: {
-    q: "Cherry-picks convenient evidence?",
-    help: "DROPPED this round. Do not code. Kept in the block so the following columns do not shift.",
-    lockedNote: "dropped variable · do not fill in",
-  },
   Marco_Polarizacao: { q: "Splits the scene into two opposing camps?", help: "Frames the story as 'us against them', with no middle position possible." },
   Marco_Figura: { q: "Pins the explanation on a single person?", help: "Attributes the cause or the solution of a collective or structural process to one individual." },
   Marco_Descredito: { q: "Discredits whoever disagrees?", help: "Attacks the person, the group or the motive of the opponent instead of the argument." },
@@ -98,7 +86,6 @@ export const editableFields = pt.editableFields.map((field) => {
     group: GROUPS[field.group] || field.group,
     question: t.q || field.question,
     help: t.help || field.help,
-    lockedNote: field.locked ? t.lockedNote || LOCKED_NOTE : field.lockedNote,
     options: field.options
       ? field.options.map((o) => TOPICS[o] || SOURCE_TYPES[o] || o)
       : field.options,

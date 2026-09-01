@@ -35,16 +35,10 @@ const shots = [
     nth: 1,
     offset: 0,
   },
-  {
-    file: "pt/05-variavel-travada.png",
-    url: "/demo/",
-    lang: "pt",
-    caption: "Variável descontinuada mantém a coluna",
-    scrollTo: "[class*=fieldRowLocked]",
-    nth: -1,
-    offset: -340,
-  },
-  { file: "pt/06-importar.png", url: "/codificar/", lang: "pt", caption: "Carregar a própria planilha" },
+  { file: "pt/05-importar.png", url: "/codificar/", lang: "pt", caption: "Carregar a própria planilha" },
+  // Tema escuro
+  { file: "pt/06-escuro-inicial.png", url: "/", lang: "pt", theme: "dark", caption: "Página inicial no escuro" },
+  { file: "pt/07-escuro-codificacao.png", url: "/demo/", lang: "pt", theme: "dark", caption: "Tela de codificação no escuro" },
   // English
   { file: "en/01-home.png", url: "/", lang: "en", caption: "Home (full page)", fullPage: true },
   { file: "en/02-home-fold.png", url: "/", lang: "en", caption: "Home, first fold" },
@@ -59,6 +53,7 @@ const shots = [
     offset: 0,
   },
   { file: "en/05-import.png", url: "/codificar/", lang: "en", caption: "Load your own spreadsheet" },
+  { file: "en/06-dark-coding.png", url: "/demo/", lang: "en", theme: "dark", caption: "Coding screen, dark" },
 ];
 
 const DEMO_KEYS = ["codifica-colab:demo:v1", "codifica-colab:demo:en:v1"];
@@ -76,14 +71,18 @@ async function main() {
   try {
     for (const shot of shots) {
       const page = await browser.newPage();
-      await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
-      // Idioma fixo e rascunho da demo zerado, para todo print sair no mesmo estado.
+      await page.emulateMediaFeatures([
+        { name: "prefers-color-scheme", value: shot.theme === "dark" ? "dark" : "light" },
+      ]);
+      // Idioma, tema e rascunho fixos: todo print sai no mesmo estado.
       await page.evaluateOnNewDocument(
-        (lang, keys) => {
+        (lang, theme, keys) => {
           localStorage.setItem("codlab:lang", lang);
+          localStorage.setItem("codlab:theme", theme);
           keys.forEach((k) => localStorage.removeItem(k));
         },
         shot.lang,
+        shot.theme || "light",
         DEMO_KEYS,
       );
       await page.goto(`${BASE}${shot.url}`, { waitUntil: "networkidle0" });

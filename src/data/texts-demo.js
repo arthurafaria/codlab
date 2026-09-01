@@ -10,6 +10,9 @@ export const project = {
   eyebrow: "Projeto Vitrine · amostra demonstrativa",
   title: "Análise de Enquadramento: Vila Aurora",
   storageKey: "codifica-colab:demo:v1",
+  // A planilha fictícia tem 8 colunas de item (ID..texto), então as variáveis
+  // começam na I.
+  codedBlockStart: 8,
   // Estado inicial da demo: abre já em andamento e num registro codificado, para
   // mostrar a ferramenta em uso em vez de um formulário vazio.
   demoSeed: { reviewed: 17, index: 4 },
