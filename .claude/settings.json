@@ -1,0 +1,37 @@
+{
+  "skills": {
+    "improve": {
+      "name": "Improve",
+      "description": "Code improvement and optimization suggestions",
+      "source": "https://github.com/shadcn/improve"
+    },
+    "design-an-interface": {
+      "name": "Design an Interface",
+      "description": "Interface design assistance and component creation",
+      "source": "https://github.com/mattpocock/skills"
+    },
+    "make-interfaces-feel-better": {
+      "name": "Make Interfaces Feel Better",
+      "description": "UI/UX improvements and interaction refinements",
+      "source": "https://github.com/jakubkrehel/make-interfaces-feel-better"
+    },
+    "ecc": {
+      "name": "ECC",
+      "description": "Error and consistency checking",
+      "source": "https://github.com/affaan-m/ecc"
+    },
+    "csv-data-visualizer": {
+      "name": "CSV Data Visualizer",
+      "description": "Create visualizations from CSV data",
+      "source": "https://github.com/ailabs-393/ai-labs-claude-skills"
+    }
+  },
+  "permissions": {
+    "allow": [
+      "bash:npm",
+      "bash:bun",
+      "bash:node",
+      "bash:git"
+    ]
+  }
+}

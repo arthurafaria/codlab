@@ -1,0 +1,47 @@
+node_modules/
+.bun-cache/
+.npm-cache/
+.bun-tmp/
+dist/
+.next/
+.local-data/
+.vercel-local/
+.agents/
+*.log
+verify-*.png
+skills-lock.json
+package-lock.json
+
+# cookies locais opcionais para preview de FB/TikTok
+data/social-cookies.json
+
+# Corpus real de pesquisa — nunca vai para o repositório público.
+# Contém telefone, nome de grupo e mensagem de participante.
+/data/
+src/data/texts.js
+src/data/codebook-desinfo.js
+app/rodada/
+/pitch/
+
+# Gerados
+/out/
+/docs-shots/
+/plans/
+.DS_Store
+
+# Material do estudo IA Racial — fica no repo ia-racial-coder, não neste.
+# O CodLAB é a ferramenta; o corpus é de cada pesquisa.
+/public/images/
+/src/data/workbook.json
+/src/data/images.json
+/src/data/codebook.js
+
+# App Vite antigo, substituído pelo Next (importa o workbook acima).
+/index.html
+/src/main.jsx
+/src/styles.css
+/scripts/serve_dist.mjs
+/scripts/generate_data.mjs
+/build-app.cmd
+/start-app.cmd
+/generate-data.cmd
