@@ -13,11 +13,12 @@ describe("dicionários", () => {
     expect(pt.length).toBeGreaterThan(100);
   });
 
+  // O traço curto (–) fica permitido para intervalo de colunas, como "K–N".
   test("nenhum texto de interface usa travessão", () => {
     const offenders = ["pt", "en"].flatMap((lang) =>
       flat(strings[lang]).filter((key) => {
         const value = key.split(".").reduce((o, k) => o[k], strings[lang]);
-        return /[—–]/.test(value);
+        return /—/.test(value);
       }).map((k) => `${lang}.${k}`),
     );
     expect(offenders).toEqual([]);
