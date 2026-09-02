@@ -15,7 +15,7 @@ o seletor fica no topo e a escolha vale para o navegador.
 |---|---|
 | `/` | Página inicial: o que a ferramenta resolve e como funciona. |
 | `/demo/` | Rodada de exemplo — 30 unidades fictícias, 28 variáveis, já pela metade. Nenhum dado real. |
-| `/codificar/` | Carrega a sua planilha e abre a ficha. Nada sai do navegador. |
+| `/codificar/` | Carrega a sua planilha e o livro de códigos, e abre a ficha. Nada sai do navegador. |
 
 ## O formato da planilha
 
@@ -48,7 +48,37 @@ Gere um arquivo de teste nesse formato com:
 bun scripts/make_test_workbook.mjs teste.xlsx
 ```
 
-### 2. Modelo declarado (com aba de variáveis)
+### 2. Livro de códigos como documento
+
+Junte o documento que você já distribui: `.pdf`, `.docx`, `.md` ou `.txt`. Ele
+entra pelo mesmo campo da planilha, e a extensão separa os dois.
+
+Cada trecho que **começa pelo nome exato de uma coluna** vira o critério daquela
+variável, ao lado da pergunta:
+
+```
+1. Desinfo_Emocional
+Recorre a apelo emocional?
+Variável binária. Mobiliza medo, indignação ou comoção como via principal.
+
+2. Tipo_URL
+Que tipo de fonte a URL aponta?
+Opções: Mídias Sociais | Veículo Jornalístico | Outros
+```
+
+- A linha com `?` vira a pergunta; o resto vira o critério.
+- `Opções:` (ou uma lista de marcadores) define as alternativas.
+- "variável binária" no texto força Não/Sim.
+- O documento inteiro fica num painel que o codificador abre a qualquer momento,
+  inclusive as partes que não casaram com nenhuma coluna.
+
+Gere um exemplo nos três formatos com:
+
+```bash
+bun scripts/make_codebook_doc.mjs pasta/
+```
+
+### 3. Modelo declarado (com aba de variáveis)
 
 É o único que carrega pergunta, critério, obrigatoriedade e variável travada.
 Em `/codificar/` há um botão que baixa o modelo pronto.

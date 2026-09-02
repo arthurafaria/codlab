@@ -24,6 +24,7 @@ app/rodada/
 /pitch/
 
 # Gerados
+/public/pdf.worker.mjs
 /out/
 /docs-shots/
 /plans/

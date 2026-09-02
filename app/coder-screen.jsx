@@ -44,6 +44,34 @@ function downloadText(filename, text, type) {
   URL.revokeObjectURL(url);
 }
 
+// Painel de leitura do livro de códigos, por cima da ficha.
+function CodebookPanel({ text, onClose, labels }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="codebook-overlay" role="dialog" aria-modal="true" aria-label={labels.openCodebook}>
+      <div className="codebook-panel">
+        <header className="codebook-panel-head">
+          <h2>{labels.openCodebook}</h2>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} autoFocus>
+            {labels.closeCodebook}
+          </button>
+        </header>
+        <div className="codebook-panel-body">
+          {text ? <pre>{text}</pre> : <p className="prose">{labels.codebookEmpty}</p>}
+        </div>
+      </div>
+      <button type="button" className="codebook-scrim" onClick={onClose} tabIndex={-1} aria-hidden="true" />
+    </div>
+  );
+}
+
 function BooleanControl({ value, onChange }) {
   const labels = useT().coder;
   return (
@@ -131,7 +159,14 @@ function FieldControl({ field, value, onChange }) {
   );
 }
 
-export default function CoderScreen({ project, sourceRecords, codebook, extraAction = null, notice = null }) {
+export default function CoderScreen({
+  project,
+  sourceRecords,
+  codebook,
+  extraAction = null,
+  notice = null,
+  codebookText = "",
+}) {
   const t = useT();
   const { lang } = useLang();
   const c = t.coder;
@@ -151,6 +186,7 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
   const [lastSaved, setLastSaved] = useState("");
   const copyTimer = useRef(null);
   const fileInputRef = useRef(null);
+  const [showCodebook, setShowCodebook] = useState(false);
 
   function loadSaved() {
     try {
@@ -374,6 +410,16 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
             </div>
             <div className={styles.topActions}>
               {extraAction}
+              {codebookText ? (
+                <button
+                  type="button"
+                  className={styles.btn}
+                  onClick={() => setShowCodebook(true)}
+                  aria-haspopup="dialog"
+                >
+                  {c.openCodebook}
+                </button>
+              ) : null}
               <label className={styles.formatPicker} title={c.binaryTitle}>
                 {c.binary}
                 <select
@@ -425,6 +471,10 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
           </p>
 
           {notice ? <p className="inferred-notice">{notice}</p> : null}
+
+          {showCodebook ? (
+            <CodebookPanel text={codebookText} onClose={() => setShowCodebook(false)} labels={c} />
+          ) : null}
 
           <div className={styles.workspace}>
             <aside className={styles.leftPane}>

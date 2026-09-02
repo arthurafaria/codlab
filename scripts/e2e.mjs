@@ -387,6 +387,65 @@ async function scenarioMultiSheet() {
   await expectEq("exporta 60 linhas × 24 colunas", [linhas.length, linhas[0].split("\t").length], [60, 24]);
 }
 
+// O documento entra junto com a planilha e vira o critério de cada variável.
+async function scenarioCodebookDoc(ext) {
+  console.log(`\n— Livro de códigos em .${ext}`);
+  const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
+  const planilha = path.join(dir, "Rodada.xlsx");
+  execFileSync("bun", ["scripts/make_test_workbook.mjs", planilha], { stdio: "pipe" });
+  execFileSync("bun", ["scripts/make_codebook_doc.mjs", dir], { stdio: "pipe" });
+  const doc = path.join(dir, `livro-de-codigos.${ext}`);
+
+  await goto("/codificar/", { clear: true });
+  await (await page.$("input[type=file]")).uploadFile(planilha, doc);
+  await sleep(ext === "pdf" ? 3200 : 1800);
+
+  const chips = await page.evaluate(() => [...document.querySelectorAll(".file-chip")].map((c) => c.textContent));
+  check("reconhece planilha e livro de códigos separadamente", chips.length === 2 && chips.some((c) => /Rodada\.xlsx/.test(c)) && chips.some((c) => /livro-de-codigos/.test(c)), chips.join(" | "));
+
+  await page.evaluate(() => {
+    const linha = [...document.querySelectorAll(".sheet-row")].find((r) => r.querySelector(".sheet-row-name").textContent === "Amostra_Ana");
+    linha.querySelector("button").click();
+  });
+  await sleep(1600);
+
+  const ficha = await page.evaluate(() => {
+    const rowOf = (h) => [...document.querySelectorAll('[class*="fieldRow"]')].find((r) => r.querySelector('[class*="fieldKey"]')?.textContent.trim().startsWith(h));
+    const ler = (h) => {
+      const r = rowOf(h);
+      if (!r) return null;
+      const sel = r.querySelector("select");
+      return {
+        pergunta: r.querySelector('[class*="fieldQuestion"]')?.textContent.trim(),
+        criterio: r.querySelector('[class*="fieldHelp"]')?.textContent.trim(),
+        opcoes: sel ? [...sel.options].map((o) => o.textContent).filter((o) => o !== "—") : null,
+        binaria: r.querySelectorAll('[class*="segmented"] button').length === 2,
+      };
+    };
+    return { tipo: ler("Tipo_URL"), panico: ler("Efeito_Panico"), obs: ler("OBS") };
+  });
+
+  check("a pergunta do documento substitui o nome da coluna", ficha.tipo.pergunta === "Que tipo de fonte a URL aponta?", ficha.tipo.pergunta);
+  check("o critério do documento aparece sob a pergunta", /Classifique pelo domínio/.test(ficha.tipo.criterio), ficha.tipo.criterio?.slice(0, 60));
+  check("a pergunta não se repete no critério", !/Que tipo de fonte/.test(ficha.tipo.criterio), ficha.tipo.criterio?.slice(0, 60));
+  await expectEq("as opções do documento viram a lista", ficha.tipo.opcoes, ["Mídias Sociais e Mensageria", "Veículo Jornalístico", "Outros"]);
+  check('"variável binária" no documento vira Não/Sim', ficha.panico.binaria, JSON.stringify(ficha.panico));
+  check("OBS continua campo aberto", ficha.obs.opcoes === null && !ficha.obs.binaria, JSON.stringify(ficha.obs));
+
+  // Painel com o documento inteiro, inclusive o que não casou com variável.
+  await clickButton("Livro de códigos");
+  await sleep(500);
+  const painel = await page.evaluate(() => {
+    const el = document.querySelector(".codebook-panel-body");
+    return { aberto: !!el, texto: el?.textContent || "" };
+  });
+  check("painel abre com o documento completo", painel.aberto && /LIVRO DE C/i.test(painel.texto), String(painel.aberto));
+  check("guarda o que não casou com nenhuma variável", /coordena/i.test(painel.texto), painel.texto.slice(-70));
+  await page.keyboard.press("Escape");
+  await sleep(300);
+  check("Esc fecha o painel", await page.evaluate(() => !document.querySelector(".codebook-panel")));
+}
+
 async function scenarioImporterErrors() {
   console.log("\n— Importar: erros legíveis");
   const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
@@ -524,6 +583,9 @@ async function main() {
     scenarioImporter,
     scenarioImporterErrors,
     scenarioMultiSheet,
+    () => scenarioCodebookDoc("docx"),
+    () => scenarioCodebookDoc("pdf"),
+    () => scenarioCodebookDoc("md"),
     scenarioTheme,
     scenarioEnglishDemo,
   ];
@@ -532,7 +594,7 @@ async function main() {
     try {
       await run();
     } catch (err) {
-      check(`${run.name} (exceção)`, false, String(err.message || err).slice(0, 200));
+      check(`${run.name || "cenário"} (exceção)`, false, String(err.message || err).slice(0, 200));
     }
   }
 

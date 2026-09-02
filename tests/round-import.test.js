@@ -145,10 +145,27 @@ describe("dedução sem aba variables", () => {
     expect(r.codebook.editableFields.find((f) => f.key === "Tipo_URL").options).toEqual(["A", "B"]);
   });
 
-  test("uma resposta observada não vira lista fechada", () => {
+  // Variável de livro de códigos existe para ser marcada. Campo aberto é a
+  // exceção: só quando o nome diz que é anotação ou o valor é longo demais.
+  test("uma resposta observada ainda vira lista, não campo aberto", () => {
     const rows = aba().map((r) => ({ ...r, Tipo_URL: "sempre igual" }));
-    const r = parseRoundWorkbook(book({ Amostra: rows }), { fileName: "r.xlsx" });
-    expect(r.codebook.editableFields.find((f) => f.key === "Tipo_URL").type).toBe("text");
+    const f = parseRoundWorkbook(book({ Amostra: rows }), { fileName: "r.xlsx" }).codebook.editableFields;
+    expect(f.find((x) => x.key === "Tipo_URL")).toMatchObject({ type: "select", options: ["sempre igual"] });
+  });
+
+  test("coluna em branco vira booleana, para dar para marcar", () => {
+    const rows = aba().map((r) => ({ ...r, Tipo_URL: "", Tema_Principal: "" }));
+    const f = parseRoundWorkbook(book({ Amostra: rows }), { fileName: "r.xlsx" }).codebook.editableFields;
+    expect(f.find((x) => x.key === "Tipo_URL").type).toBe("boolean");
+    expect(f.find((x) => x.key === "Tema_Principal").type).toBe("boolean");
+    // Só o campo de anotação continua aberto.
+    expect(f.find((x) => x.key === "OBS").type).toBe("text");
+  });
+
+  test("valor longo demais para uma lista continua texto", () => {
+    const rows = aba().map((r, i) => ({ ...r, Tipo_URL: `parágrafo ${i} `.repeat(12) }));
+    const f = parseRoundWorkbook(book({ Amostra: rows }), { fileName: "r.xlsx" }).codebook.editableFields;
+    expect(f.find((x) => x.key === "Tipo_URL").type).toBe("text");
   });
 
   test("prefixo repetido vira grupo; coluna solta não", () => {

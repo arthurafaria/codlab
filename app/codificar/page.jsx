@@ -15,6 +15,13 @@ import {
   loadRound,
   forgetRound,
 } from "@/lib/round-import";
+import { extractDocText } from "@/lib/codebook-doc";
+
+const DOC_EXT = /\.(pdf|docx|md|markdown|txt)$/i;
+const SHEET_EXT = /\.(xlsx|xlsm|csv)$/i;
+
+// Livro de códigos grande não cabe no localStorage junto com a rodada.
+const MAX_DOC_CHARS = 400000;
 
 function errorMessage(err, t) {
   if (err?.code && t.importer.errors[err.code]) return fmt(t.importer.errors[err.code], err.params || {});
@@ -26,6 +33,9 @@ export default function CodificarPage() {
   const s = t.importer;
   const [round, setRound] = useState(null);
   const [pending, setPending] = useState(null); // { buffer, fileName, sheets }
+  const [dataFile, setDataFile] = useState(null); // { buffer, name }
+  const [doc, setDoc] = useState(null); // { text, name }
+  const [busy, setBusy] = useState(false);
   const [stored, setStored] = useState([]);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -38,9 +48,11 @@ export default function CodificarPage() {
   }, []);
 
   const refresh = () => setStored(listStoredRounds());
+  // basePath do Pages: o worker do pdf.js mora ao lado do site.
+  const basePath = typeof window === "undefined" ? "" : window.location.pathname.split("/codificar")[0];
 
-  function open(buffer, fileName, sheetName) {
-    const parsed = parseRoundWorkbook(buffer, { fileName, sheetName });
+  function open(buffer, fileName, sheetName, codebookDoc) {
+    const parsed = parseRoundWorkbook(buffer, { fileName, sheetName, codebookDoc });
     parsed.project.eyebrow = s.loadedEyebrow;
     if (!parsed.project.title) parsed.project.title = s.untitled;
     saveRound(parsed);
@@ -49,32 +61,53 @@ export default function CodificarPage() {
     setRound(parsed);
   }
 
-  function ingest(file) {
+  // A planilha diz quais variáveis existem; o documento diz por que se marcam.
+  // Os dois entram pelo mesmo campo e são separados pela extensão.
+  async function accept(files) {
     setError("");
-    setPending(null);
-    const reader = new FileReader();
-    reader.onload = () => {
-      const buffer = reader.result;
-      try {
-        const found = inspectWorkbook(buffer);
-        const usable = found.sheets.filter((sheet) => sheet.usable);
-        // Mais de uma aba codificável: quem escolhe é o pesquisador, não o palpite.
-        if (found.mode === "infer" && usable.length > 1) {
-          setPending({ buffer, fileName: file.name, sheets: found.sheets });
-          return;
+    setBusy(true);
+    let nextData = dataFile;
+    let nextDoc = doc;
+    try {
+      for (const file of files) {
+        if (DOC_EXT.test(file.name)) {
+          try {
+            const text = await extractDocText(file, { workerSrc: `${basePath}/pdf.worker.mjs` });
+            nextDoc = { text: text.slice(0, MAX_DOC_CHARS), name: file.name };
+          } catch (err) {
+            console.error("livro de códigos:", err);
+            setError(fmt(s.docFail, { name: file.name }));
+          }
+        } else if (SHEET_EXT.test(file.name)) {
+          nextData = { buffer: await file.arrayBuffer(), name: file.name };
         }
-        open(buffer, file.name);
-      } catch (err) {
-        setError(errorMessage(err, t));
       }
-    };
-    reader.onerror = () => setError(s.openFail);
-    reader.readAsArrayBuffer(file);
+      setDataFile(nextData);
+      setDoc(nextDoc);
+      if (nextData) start(nextData, nextDoc);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function start(data, codebook) {
+    try {
+      const found = inspectWorkbook(data.buffer);
+      const usable = found.sheets.filter((sheet) => sheet.usable);
+      // Mais de uma aba codificável: quem escolhe é o pesquisador, não o palpite.
+      if (found.mode === "infer" && usable.length > 1) {
+        setPending({ buffer: data.buffer, fileName: data.name, sheets: found.sheets });
+        return;
+      }
+      open(data.buffer, data.name, "", codebook?.text || null);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    }
   }
 
   function pickSheet(name) {
     try {
-      open(pending.buffer, pending.fileName, name);
+      open(pending.buffer, pending.fileName, name, doc?.text || null);
     } catch (err) {
       setError(errorMessage(err, t));
     }
@@ -83,8 +116,15 @@ export default function CodificarPage() {
   function onDrop(event) {
     event.preventDefault();
     setDragging(false);
-    const file = event.dataTransfer.files?.[0];
-    if (file) ingest(file);
+    const files = [...(event.dataTransfer.files || [])];
+    if (files.length) accept(files);
+  }
+
+  function clearFiles() {
+    setDataFile(null);
+    setDoc(null);
+    setPending(null);
+    setError("");
   }
 
   function downloadTemplate() {
@@ -115,6 +155,7 @@ export default function CodificarPage() {
         project={round.project}
         sourceRecords={round.records}
         codebook={round.codebook}
+        codebookText={round.codebookDoc?.text || ""}
         notice={
           round.summary?.inferred ? fmt(s.inferredNotice, { sheet: round.summary.sheet }) : null
         }
@@ -202,20 +243,42 @@ export default function CodificarPage() {
                   <input
                     ref={inputRef}
                     type="file"
-                    accept=".xlsx,.xlsm"
+                    multiple
+                    accept=".xlsx,.xlsm,.csv,.pdf,.docx,.md,.markdown,.txt"
                     className="visually-hidden-input"
                     aria-label={s.choose}
                     onChange={(e) => {
-                      const file = e.target.files?.[0];
+                      const files = [...(e.target.files || [])];
                       e.target.value = "";
-                      if (file) ingest(file);
+                      if (files.length) accept(files);
                     }}
                   />
-                  <button type="button" className="btn btn-dark" onClick={() => inputRef.current?.click()}>
+                  <button
+                    type="button"
+                    className="btn btn-dark"
+                    onClick={() => inputRef.current?.click()}
+                    disabled={busy}
+                  >
                     {s.choose}
                   </button>
                 </div>
               )}
+
+              {dataFile || doc ? (
+                <div className="file-chips">
+                  {dataFile ? (
+                    <div className="file-chip">{fmt(s.gotData, { name: dataFile.name })}</div>
+                  ) : null}
+                  {doc ? <div className="file-chip">{fmt(s.gotDoc, { name: doc.name })}</div> : null}
+                  <div className="importer-actions">
+                    {dataFile && pending ? null : null}
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={clearFiles}>
+                      {s.clearFiles}
+                    </button>
+                    {!dataFile ? <span className="sheet-row-meta">{s.needData}</span> : null}
+                  </div>
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="notice notice-bad" role="alert">
@@ -269,6 +332,11 @@ export default function CodificarPage() {
                     </li>
                   ))}
                 </ul>
+              </div>
+
+              <div className="rule-note">
+                <h3>{s.a5t}</h3>
+                <p className="prose">{s.a5}</p>
               </div>
 
               <div className="rule-note">
