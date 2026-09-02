@@ -133,9 +133,12 @@ export default function HomeContent() {
                 <p className="prose">{h.data.c2}</p>
               </article>
             </div>
-            <div className="band-cta">
+            <div className="band-cta importer-actions">
               <Link className="btn btn-primary" href="/demo/">
                 {h.data.cta}
+              </Link>
+              <Link className="btn btn-ghost" href="/guia/">
+                {t.nav.how}
               </Link>
             </div>
           </div>

@@ -663,6 +663,8 @@ a.wordmark:hover .wordmark-mark {
 .band-orange {
   background: var(--accent);
   border-top: 0;
+  --bg: var(--accent);
+  --surface-2: #fff4e2;
   --ink: #2b1d06;
   --ink-2: #4a3512;
   --ink-3: #6a4f1e;
@@ -678,6 +680,11 @@ a.wordmark:hover .wordmark-mark {
 .band-dark {
   background: var(--deep);
   border-top: 0;
+  /* Superfície e fundo também entram no micro-tema: sem isso, qualquer
+     componente que use --surface-2 desenha claro dentro da faixa escura. */
+  --bg: #102e39;
+  --surface-2: #102e39;
+  --surface-3: #1a4453;
   --ink: var(--on-deep);
   --ink-2: var(--on-deep-2);
   --ink-3: var(--on-deep-2);
@@ -772,6 +779,8 @@ a.wordmark:hover .wordmark-mark {
 .site-footer {
   background: var(--deep);
   padding: 52px 0 40px;
+  --bg: #102e39;
+  --surface-2: #102e39;
   --ink: var(--on-deep);
   --ink-2: var(--on-deep-2);
   --ink-3: var(--on-deep-2);
@@ -1160,4 +1169,216 @@ textarea {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+}
+
+/* ---------- Guia ---------- */
+
+.guide-head {
+  display: grid;
+  gap: 18px;
+  padding: 66px 0 56px;
+  max-width: 74ch;
+}
+
+.guide-lead {
+  font-size: 1.07rem;
+}
+
+.guide-toc {
+  margin-top: 10px;
+  padding: 18px 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.guide-toc ol {
+  counter-reset: toc;
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px 26px;
+  margin: 12px 0 0;
+  padding: 0;
+}
+
+.guide-toc li {
+  counter-increment: toc;
+}
+
+.guide-toc a {
+  display: inline-flex;
+  gap: 10px;
+  font-size: 0.94rem;
+  font-weight: 500;
+  color: var(--ink);
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+}
+
+.guide-toc a::before {
+  content: "0" counter(toc);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+}
+
+.guide-toc a:hover {
+  border-bottom-color: var(--accent);
+}
+
+/* Âncora não pode parar embaixo da navegação fixa. */
+.band[id] {
+  scroll-margin-top: 76px;
+}
+
+.guide-notice {
+  margin-top: 24px;
+}
+
+.guide-blocks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 26px 40px;
+}
+
+.guide-subhead {
+  margin-bottom: 12px;
+  font-size: 0.95rem;
+}
+
+.guide-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+
+.guide-table td {
+  padding: 7px 0;
+  border-top: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.guide-table td:first-child {
+  color: var(--ink-2);
+  padding-right: 18px;
+}
+
+.guide-table td:last-child {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.85rem;
+  color: var(--on-soft);
+  white-space: nowrap;
+}
+
+/* Onde a planilha se parte: metadado | material | variáveis */
+.split-diagram {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 38px;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-2);
+}
+
+.split-side {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.split-cols {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.split-cols code {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  font-size: 0.78rem;
+}
+
+.split-pivot code {
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: var(--pill);
+}
+
+.guide-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 18px;
+  max-width: 78ch;
+}
+
+.guide-steps li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.guide-steps h4 {
+  margin: 3px 0 5px;
+  font-size: 0.99rem;
+  font-weight: 650;
+}
+
+.guide-code {
+  margin: 0;
+  padding: 20px 22px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-family: var(--font-mono), monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  color: var(--ink);
+  overflow-x: auto;
+  white-space: pre;
+}
+
+.guide-code-dark {
+  margin-top: 14px;
+}
+
+.guide-example {
+  margin-top: 34px;
+  align-items: start;
+}
+
+.guide-example-copy {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.guide-rel-why {
+  margin-top: 20px;
+}
+
+.guide-warn {
+  margin-top: 24px;
+  max-width: 78ch;
+  font-size: 0.94rem;
+}
+
+@media (max-width: 940px) {
+  .guide-toc ol,
+  .guide-blocks {
+    grid-template-columns: 1fr;
+  }
+
+  .split-diagram {
+    grid-template-columns: 1fr;
+  }
 }

@@ -14,6 +14,7 @@ o seletor fica no topo e a escolha vale para o navegador.
 | Rota | O que faz |
 |---|---|
 | `/` | Página inicial: o que a ferramenta resolve e como funciona. |
+| `/guia/` | Como montar a planilha e o livro de códigos, como codificar e como sair daqui para o teste de confiabilidade. Traz os arquivos de exemplo para baixar. |
 | `/demo/` | Rodada de exemplo — 30 unidades fictícias, 28 variáveis, já pela metade. Nenhum dado real. |
 | `/codificar/` | Carrega a sua planilha e o livro de códigos, e abre a ficha. Nada sai do navegador. |
 
@@ -78,6 +79,9 @@ Gere um exemplo nos três formatos com:
 bun scripts/make_codebook_doc.mjs pasta/
 ```
 
+Os mesmos arquivos ficam para download em [`/guia/`](https://arthurafaria.github.io/codlab/guia/),
+gerados no navegador a partir de `lib/samples.js`.
+
 ### 3. Modelo declarado (com aba de variáveis)
 
 É o único que carrega pergunta, critério, obrigatoriedade e variável travada.
@@ -128,6 +132,8 @@ multi-seleção, erro legível), troca de idioma e a demo em inglês.
 |---|---|
 | `lib/coding.js` | Geometria das colunas, serialização, campos obrigatórios. Sem React. |
 | `lib/round-import.js` | Lê a planilha do usuário e gera o modelo. |
+| `lib/codebook-doc.js` | Lê o livro de códigos em .pdf, .docx, .md ou .txt e cola o critério em cada variável. |
+| `lib/samples.js` | Os arquivos de exemplo, usados pela página do guia e pelos scripts de teste. |
 | `lib/i18n.jsx`, `lib/strings.js` | Idioma da interface e os dois dicionários, com as mesmas chaves. |
 | `app/coder-screen.jsx` | A tela de codificação, usada pela demo, pela rodada real e pela planilha carregada. |
 | `src/data/*-demo*.js` | A amostra fictícia, em pt e en. |
@@ -143,6 +149,17 @@ Duas coisas precisam bater:
 2. `NEXT_PUBLIC_BASE_PATH` no workflow tem que ser `/<nome-do-repo>`. Está como
    `/codlab`. Ao mover para outra conta ou organização, ajuste ali — é o erro que
    faz o site subir sem CSS.
+
+## Teste de confiabilidade
+
+A organização "uma aba por codificador" existe para isso: mesmas unidades, mesma
+ordem, mesmas colunas, respostas diferentes. Cada pessoa usa **Copiar valores** e
+cola o bloco na própria aba; o cálculo vira uma coluna contra a outra.
+
+O guia cobre o **alpha de Krippendorff** e o **coeficiente de Brennan-Prediger**,
+e por que reportar os dois: em variável muito desbalanceada (quase tudo `FALSE`,
+que é o normal num livro de códigos de desinformação) o alpha despenca por causa
+do paradoxo do kappa, enquanto o Brennan-Prediger não depende das marginais.
 
 ## Onde os dados ficam
 

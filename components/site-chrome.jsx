@@ -19,7 +19,7 @@ export function SiteNav({ active }) {
         </Link>
 
         <div className="site-nav-links">
-          <Link href="/#como-funciona" aria-current={active === "how" ? "page" : undefined}>
+          <Link href="/guia/" aria-current={active === "how" ? "page" : undefined}>
             {t.nav.how}
           </Link>
           <Link href="/demo/" aria-current={active === "demo" ? "page" : undefined}>

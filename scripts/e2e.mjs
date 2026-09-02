@@ -131,8 +131,70 @@ async function scenarioHome() {
   await clickButton("PT");
   await expectEq("volta para português", await h1(), "Codificação manual sem a planilha aberta do lado.");
 
-  const links = await page.evaluate(() => [...document.querySelectorAll('a[href*="/demo/"]')].length);
-  check("links para /demo/ presentes", links >= 2, `${links}`);
+  const menu = await page.evaluate(() => [...document.querySelectorAll(".site-nav-links a")].map((a) => a.textContent.trim()));
+  await expectEq("menu com Guia, Exemplo e Código", menu, ["Guia", "Exemplo", "Código"]);
+}
+
+async function scenarioGuide() {
+  console.log("\n— Guia");
+  await goto("/", { clear: true });
+  await clickButton("Guia");
+  await sleep(900);
+  await expectEq("a navegação leva ao guia", await page.evaluate(() => location.pathname), "/guia/");
+
+  const pagina = await page.evaluate(() => ({
+    h1: document.querySelector("h1")?.textContent.trim(),
+    secoes: [...document.querySelectorAll(".band[id]")].map((b) => b.id),
+    titulos: [...document.querySelectorAll(".band[id] h2")].map((h) => h.textContent.trim()),
+    indice: [...document.querySelectorAll(".guide-toc a")].map((a) => a.getAttribute("href")),
+  }));
+  await expectEq("seis seções, na ordem", pagina.secoes, [
+    "files", "sheet", "doc", "coding", "reliability", "downloads",
+  ]);
+  await expectEq("o índice aponta para todas elas", pagina.indice, pagina.secoes.map((id) => `#${id}`));
+  const conf = await page.evaluate(() => document.querySelector("#reliability").innerText);
+  check("explica o alpha de Krippendorff", /Krippendorff/.test(conf) && /0,800|0\.800/.test(conf), "");
+  check("explica o Brennan-Prediger", /Brennan-Prediger/.test(conf) && /po/.test(conf), "");
+  check("explica por que reportar os dois", /paradoxo do kappa|kappa paradox/i.test(conf), "");
+
+  // Âncora não pode parar embaixo da navegação fixa.
+  await page.evaluate(() => document.querySelector('.guide-toc a[href="#reliability"]').click());
+  await sleep(700);
+  const pos = await page.evaluate(() => {
+    const nav = document.querySelector(".site-nav").getBoundingClientRect();
+    const alvo = document.querySelector("#reliability h2").getBoundingClientRect();
+    return { navBottom: Math.round(nav.bottom), tituloTop: Math.round(alvo.top) };
+  });
+  check("o título da seção não fica sob a navegação fixa", pos.tituloTop > pos.navBottom, JSON.stringify(pos));
+
+  // Downloads: o arquivo é montado no navegador, sem servidor.
+  const baixados = await page.evaluate(async () => {
+    const nomes = [];
+    const orig = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () {
+      if (this.download) nomes.push(this.download);
+    };
+    for (const b of [...document.querySelectorAll("#downloads button")]) {
+      b.click();
+      await new Promise((r) => setTimeout(r, 500));
+    }
+    HTMLAnchorElement.prototype.click = orig;
+    return nomes;
+  });
+  await expectEq("os quatro exemplos baixam do próprio site", baixados.sort(), [
+    "exemplo-uma-aba-por-codificador.xlsx",
+    "livro-de-codigos.docx",
+    "livro-de-codigos.md",
+    "modelo-codlab.xlsx",
+  ]);
+
+  await clickButton("EN");
+  await sleep(600);
+  await expectEq("guia em inglês", await page.evaluate(() => document.querySelector("h1").textContent.trim()),
+    "How to prepare the files, and how to code.");
+  const confEn = await page.evaluate(() => document.querySelector("#reliability").innerText);
+  check("confiabilidade traduzida", /kappa paradox/i.test(confEn) && /Brennan-Prediger/.test(confEn), "");
+  await clickButton("PT");
 }
 
 async function scenarioDemoNavigation() {
@@ -576,6 +638,7 @@ async function main() {
 
   const scenarios = [
     scenarioHome,
+    scenarioGuide,
     scenarioDemoNavigation,
     scenarioDemoCoding,
     scenarioExport,
