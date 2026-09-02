@@ -657,16 +657,34 @@ a.wordmark:hover .wordmark-mark {
   background: var(--surface-2);
 }
 
-/* Faixa âmbar: o único bloco chapado da página, no ponto do argumento. */
+/* Faixa âmbar: o único bloco chapado da página, no ponto do argumento.
+   Redefine os tokens em vez de sobrescrever elemento por elemento, então
+   cartão, etiqueta e texto ficam certos nos dois temas. */
 .band-orange {
   background: var(--accent);
   border-top: 0;
+  --ink: #2b1d06;
+  --ink-2: #4a3512;
+  --ink-3: #6a4f1e;
+  --surface: #fffaf1;
+  --surface-3: #f6e5c8;
+  --line: #dcbe86;
+  --line-strong: #c9a765;
+  --accent-soft: #fff2da;
+  --on-soft: #6b4a10;
+  color: var(--ink);
 }
 
 .band-dark {
   background: var(--deep);
   border-top: 0;
-  color: var(--on-deep);
+  --ink: var(--on-deep);
+  --ink-2: var(--on-deep-2);
+  --ink-3: var(--on-deep-2);
+  --surface: var(--deep-2);
+  --line: var(--on-deep-line);
+  --line-strong: var(--on-deep-line);
+  color: var(--ink);
 }
 
 .band-head {
@@ -680,31 +698,13 @@ a.wordmark:hover .wordmark-mark {
   margin-bottom: 0;
 }
 
-.band-orange .band-head h2,
-.band-orange .prose {
-  color: var(--on-accent);
-}
-
 .band-orange .script::before {
-  background: var(--on-accent);
+  background: var(--ink);
 }
 
-.overline-on-orange {
-  color: var(--on-accent);
-  opacity: 0.68;
-}
-
-.band-dark h2,
-.band-dark h3 {
-  color: var(--on-deep);
-}
-
-.band-dark .prose {
-  color: var(--on-deep-2);
-}
-
+.overline-on-orange,
 .overline-on-dark {
-  color: var(--on-deep-2);
+  color: var(--ink-3);
 }
 
 .band-cta {
@@ -731,15 +731,6 @@ a.wordmark:hover .wordmark-mark {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: var(--radius-lg);
-}
-
-.band-orange .card {
-  border-color: rgba(43, 29, 6, 0.16);
-}
-
-.band-dark .card {
-  background: var(--deep-2);
-  border-color: var(--on-deep-line);
 }
 
 .card .prose {
@@ -780,8 +771,12 @@ a.wordmark:hover .wordmark-mark {
 
 .site-footer {
   background: var(--deep);
-  color: var(--on-deep);
   padding: 52px 0 40px;
+  --ink: var(--on-deep);
+  --ink-2: var(--on-deep-2);
+  --ink-3: var(--on-deep-2);
+  --line: var(--on-deep-line);
+  color: var(--ink);
 }
 
 .site-footer-inner {
@@ -803,13 +798,12 @@ a.wordmark:hover .wordmark-mark {
 }
 
 .site-footer .prose {
-  color: var(--on-deep-2);
   font-size: 0.92rem;
 }
 
 .site-footer a {
   justify-self: start;
-  color: var(--on-deep);
+  color: var(--ink);
   text-decoration: none;
   border-bottom: 1px solid var(--on-deep-line);
   transition: border-color 140ms;
@@ -920,6 +914,18 @@ textarea {
   white-space: nowrap;
 }
 
+/* Aviso de rodada deduzida, acima da ficha. */
+.inferred-notice {
+  margin: 14px 0 0;
+  padding: 12px 16px;
+  border-left: 3px solid var(--line-strong);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  background: var(--surface-2);
+  color: var(--ink-2);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
 /* ---------- Importador ---------- */
 
 .importer {
@@ -985,6 +991,42 @@ textarea {
 .stored-round-actions {
   display: flex;
   gap: 8px;
+}
+
+/* Escolha de aba, quando o arquivo tem mais de uma codificável. */
+.sheet-list {
+  display: grid;
+  gap: 10px;
+}
+
+.sheet-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.sheet-row-name {
+  font-family: var(--font-mono), monospace;
+  font-size: 0.92rem;
+  font-weight: 500;
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.sheet-row-meta {
+  margin-top: 4px;
+  font-size: 0.85rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheet-row-off {
+  opacity: 0.55;
 }
 
 /* ---------- Responsivo ---------- */

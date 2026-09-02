@@ -131,7 +131,7 @@ function FieldControl({ field, value, onChange }) {
   );
 }
 
-export default function CoderScreen({ project, sourceRecords, codebook, extraAction = null }) {
+export default function CoderScreen({ project, sourceRecords, codebook, extraAction = null, notice = null }) {
   const t = useT();
   const { lang } = useLang();
   const c = t.coder;
@@ -423,6 +423,8 @@ export default function CoderScreen({ project, sourceRecords, codebook, extraAct
                 : "",
             })}
           </p>
+
+          {notice ? <p className="inferred-notice">{notice}</p> : null}
 
           <div className={styles.workspace}>
             <aside className={styles.leftPane}>

@@ -12,6 +12,7 @@ import { tmpdir } from "node:os";
 import * as XLSX from "xlsx";
 import puppeteer from "puppeteer-core";
 import { buildTemplateWorkbook } from "../lib/round-import.js";
+import { execFileSync } from "node:child_process";
 
 const BASE = process.env.E2E_BASE || "http://127.0.0.1:3100";
 const CHROME =
@@ -313,6 +314,79 @@ async function scenarioImporter() {
   check("modelo .xlsx é gerado no navegador", tpl && tpl.type.includes("spreadsheet") || tpl?.type.includes("octet"), tpl?.type);
 }
 
+async function scenarioMultiSheet() {
+  console.log("\n— Planilha com uma aba por codificador");
+  const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
+  const file = path.join(dir, "Rodada Piloto.xlsx");
+  execFileSync("bun", ["scripts/make_test_workbook.mjs", file], { stdio: "pipe" });
+
+  await goto("/codificar/", { clear: true });
+  await (await page.$("input[type=file]")).uploadFile(file);
+  await sleep(1400);
+
+  const picker = await page.evaluate(() => ({
+    titulo: document.querySelector("h1")?.textContent.trim(),
+    abas: [...document.querySelectorAll(".sheet-row-name")].map((n) => n.textContent),
+    meta: document.querySelector(".sheet-row-meta")?.textContent,
+    semFicha: !document.querySelector('[class*="fieldRow"]'),
+  }));
+  await expectEq("oferece as 4 abas em vez de adivinhar", picker.abas, [
+    "Amostra", "Amostra_Ana", "Amostra_Bruno", "Amostra_Carla",
+  ]);
+  check("pergunta qual aba antes de abrir", picker.semFicha && /aba/i.test(picker.titulo), picker.titulo);
+  check("mostra linhas, variáveis e a coluna do material", /60 linhas · 24 variáveis · material em texto/.test(picker.meta), picker.meta);
+
+  // Escolhe a segunda aba: a rodada aberta tem que ser a dela.
+  await page.evaluate(() => {
+    const linha = [...document.querySelectorAll(".sheet-row")].find((r) =>
+      r.querySelector(".sheet-row-name").textContent === "Amostra_Ana",
+    );
+    linha.querySelector("button").click();
+  });
+  await sleep(1400);
+
+  const aberta = await page.evaluate(() => ({
+    titulo: document.querySelector("h1")?.textContent.trim(),
+    status: document.querySelector('[class*=statusRow]')?.innerText.replace(/\s+/g, " "),
+    aviso: document.querySelector(".inferred-notice")?.textContent || "",
+    grupos: [...document.querySelectorAll('[class*=fieldGroup] h2')].map((h) => h.textContent),
+    linhas: document.querySelectorAll('[class*="fieldRow"]').length,
+    hint: document.querySelector('[class*="pasteHint"]')?.innerText,
+    meta: [...document.querySelectorAll('[class*="metadata"] div')].map((d) => d.innerText.replace(/\n/g, "=")),
+  }));
+  await expectEq("abre a aba escolhida", aberta.titulo, "Rodada Piloto · Amostra_Ana");
+  check("60 registros", aberta.status.startsWith("Registro 001/60"), aberta.status);
+  await expectEq("24 variáveis, todas na ficha", aberta.linhas, 24);
+  check("avisa que o livro de códigos foi deduzido", /deduzido/i.test(aberta.aviso), aberta.aviso.slice(0, 70));
+  await expectEq("agrupa pelo prefixo repetido", aberta.grupos, [
+    "Outras variáveis", "Tema", "Conteudo", "Desinfo", "Efeito",
+  ]);
+  check("bloco de colagem começa depois do material (I)", aberta.hint.includes("I→AF"), aberta.hint);
+
+  // innerText aplica o text-transform do CSS, então o rótulo vem em maiúsculas.
+  const dia = aberta.meta.find((m) => m.toLowerCase().startsWith("dia="));
+  const hora = aberta.meta.find((m) => m.toLowerCase().startsWith("hora="));
+  check("data do Excel vira data legível", /=\d{4}-\d{2}-\d{2}$/.test(dia || ""), dia);
+  check("hora do Excel vira hora legível", /=\d{2}:\d{2}$/.test(hora || ""), hora);
+
+  // Os valores já codificados na planilha chegam preenchidos na ficha.
+  const preenchidos = await page.evaluate(() => {
+    const rows = [...document.querySelectorAll('[class*="fieldRow"]')];
+    const sim = rows.filter((r) => {
+      const b = [...r.querySelectorAll("button")];
+      return b.length === 2 && b[1].getAttribute("aria-checked") === "true";
+    }).length;
+    const selects = rows.filter((r) => r.querySelector("select")?.value).length;
+    return { sim, selects };
+  });
+  check("respostas que já estavam na planilha aparecem marcadas", preenchidos.sim + preenchidos.selects > 0, JSON.stringify(preenchidos));
+
+  await clickButton("Copiar valores");
+  const clip = await page.evaluate(() => window.__clip);
+  const linhas = clip.split("\n");
+  await expectEq("exporta 60 linhas × 24 colunas", [linhas.length, linhas[0].split("\t").length], [60, 24]);
+}
+
 async function scenarioImporterErrors() {
   console.log("\n— Importar: erros legíveis");
   const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
@@ -449,6 +523,7 @@ async function main() {
     scenarioRestore,
     scenarioImporter,
     scenarioImporterErrors,
+    scenarioMultiSheet,
     scenarioTheme,
     scenarioEnglishDemo,
   ];

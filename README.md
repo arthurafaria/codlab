@@ -19,7 +19,39 @@ o seletor fica no topo e a escolha vale para o navegador.
 
 ## O formato da planilha
 
-Um `.xlsx` com duas abas. Em `/codificar/` há um botão que baixa o modelo pronto.
+Dois formatos são aceitos.
+
+### 1. Planilha que você já usa (sem aba de variáveis)
+
+Se o arquivo tiver uma coluna com o material (`texto`, `text`, `mensagem`,
+`conteudo`, `prompt`…), ela parte a aba em duas: o que vem antes é metadado de
+leitura, o que vem depois vira variável. O tipo de cada uma sai dos valores já
+preenchidos na coluna:
+
+| o que está na coluna | vira |
+|---|---|
+| só TRUE/FALSE, 0/1, sim/não | booleana |
+| só números | número |
+| 2 a 15 respostas curtas repetidas | seleção, com essas opções |
+| o resto, ou coluna vazia, ou nome tipo `OBS` | texto livre |
+
+Prefixo repetido em duas ou mais colunas vira grupo na ficha: `Desinfo_*` fica
+sob "Desinfo". Data e hora que o Excel guardou como número (`46110`, `0,9631`)
+viram `2026-03-29` e `23:07`.
+
+Uma aba por codificador funciona: o CodLAB lista as abas codificáveis com
+quantas linhas e variáveis cada uma tem, e você escolhe qual abrir.
+
+Gere um arquivo de teste nesse formato com:
+
+```bash
+bun scripts/make_test_workbook.mjs teste.xlsx
+```
+
+### 2. Modelo declarado (com aba de variáveis)
+
+É o único que carrega pergunta, critério, obrigatoriedade e variável travada.
+Em `/codificar/` há um botão que baixa o modelo pronto.
 
 **`variables`** — uma linha por variável, na ordem em que as colunas saem:
 

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import * as XLSX from "xlsx";
-import { parseRoundWorkbook, buildTemplateWorkbook } from "../lib/round-import.js";
+import { parseRoundWorkbook, buildTemplateWorkbook, inspectWorkbook } from "../lib/round-import.js";
 
 function book(sheets) {
   const wb = XLSX.utils.book_new();
@@ -97,5 +97,108 @@ describe("parseRoundWorkbook", () => {
         expect.objectContaining({ code: "noTextColumn" }),
       );
     });
+  });
+});
+
+describe("dedução sem aba variables", () => {
+  // Uma aba de codificação comum: metadados, a coluna do material, e depois
+  // as variáveis. É o formato "uma aba por codificador".
+  const linha = (i, extra = {}) => ({
+    ID: i,
+    dia: 46023 + i,
+    hora: 0.5 + i / 1000,
+    grupo: "Canal X",
+    texto: `Mensagem número ${i} com tamanho suficiente para ser detectada como material`,
+    Tipo_URL: ["A", "B"][i % 2],
+    Conteudo_Eleitoral: i % 2 ? "TRUE" : "FALSE",
+    Desinfo_Emocional: "FALSE",
+    Desinfo_Urgencia: "TRUE",
+    Efeito_Panico: "FALSE",
+    Alcance: String(i * 10),
+    OBS: i === 1 ? "só uma anotação" : "",
+    ...extra,
+  });
+  const aba = (n = 4) => Array.from({ length: n }, (_, i) => linha(i + 1));
+
+  test("a coluna do material parte metadados de variáveis", () => {
+    const r = parseRoundWorkbook(book({ Amostra_Ana: aba() }), { fileName: "rodada.xlsx" });
+    expect(r.codebook.metaFields.map((m) => m.key)).toEqual(["ID", "dia", "hora", "grupo"]);
+    expect(r.codebook.editableFields.map((f) => f.key)).toEqual([
+      "Tipo_URL", "Conteudo_Eleitoral", "Desinfo_Emocional", "Desinfo_Urgencia", "Efeito_Panico", "Alcance", "OBS",
+    ]);
+    expect(r.project.codedBlockStart).toBe(5); // texto na E, variáveis a partir da F
+    expect(r.summary.inferred).toBe(true);
+  });
+
+  test("tipo sai dos valores da coluna", () => {
+    const r = parseRoundWorkbook(book({ Amostra: aba() }), { fileName: "r.xlsx" });
+    const tipo = Object.fromEntries(r.codebook.editableFields.map((f) => [f.key, f.type]));
+    expect(tipo).toEqual({
+      Tipo_URL: "select",
+      Conteudo_Eleitoral: "boolean",
+      Desinfo_Emocional: "boolean",
+      Desinfo_Urgencia: "boolean",
+      Efeito_Panico: "boolean",
+      Alcance: "number",
+      OBS: "text",
+    });
+    expect(r.codebook.editableFields.find((f) => f.key === "Tipo_URL").options).toEqual(["A", "B"]);
+  });
+
+  test("uma resposta observada não vira lista fechada", () => {
+    const rows = aba().map((r) => ({ ...r, Tipo_URL: "sempre igual" }));
+    const r = parseRoundWorkbook(book({ Amostra: rows }), { fileName: "r.xlsx" });
+    expect(r.codebook.editableFields.find((f) => f.key === "Tipo_URL").type).toBe("text");
+  });
+
+  test("prefixo repetido vira grupo; coluna solta não", () => {
+    const r = parseRoundWorkbook(book({ Amostra: aba() }), { fileName: "r.xlsx" });
+    const grupo = Object.fromEntries(r.codebook.editableFields.map((f) => [f.key, f.group]));
+    expect(grupo.Desinfo_Emocional).toBe("Desinfo");
+    expect(grupo.Desinfo_Urgencia).toBe("Desinfo");
+    expect(grupo.Efeito_Panico).toBe("Outras variáveis"); // só uma Efeito_
+    expect(grupo.Alcance).toBe("Outras variáveis");
+  });
+
+  test("data e hora em número de série do Excel viram legíveis", () => {
+    const r = parseRoundWorkbook(book({ Amostra: aba() }), { fileName: "r.xlsx" });
+    expect(r.records[0].dia).toBe("2026-01-02");
+    expect(r.records[0].hora).toMatch(/^\d{2}:\d{2}$/);
+    // Só converte o que tem nome e faixa de data/hora; ID continua ID.
+    expect(String(r.records[0].ID)).toBe("1");
+  });
+
+  test("inspectWorkbook lista as abas codificáveis e o motivo das outras", () => {
+    const wb = book({
+      Amostra_Ana: aba(),
+      Amostra_Bruno: aba(2),
+      "Só metadados": [{ ID: 1, nome: "x" }],
+    });
+    const found = inspectWorkbook(wb);
+    expect(found.mode).toBe("infer");
+    const usaveis = found.sheets.filter((s) => s.usable).map((s) => [s.name, s.rows, s.variables]);
+    expect(usaveis).toEqual([["Amostra_Ana", 4, 7], ["Amostra_Bruno", 2, 7]]);
+    expect(found.sheets.find((s) => s.name === "Só metadados").usable).toBe(false);
+  });
+
+  test("a aba escolhida manda; sem escolha, a primeira codificável", () => {
+    const wb = book({ Amostra_Ana: aba(4), Amostra_Bruno: aba(2) });
+    expect(parseRoundWorkbook(wb, { fileName: "r.xlsx" }).summary.sheet).toBe("Amostra_Ana");
+    const bruno = parseRoundWorkbook(wb, { fileName: "r.xlsx", sheetName: "Amostra_Bruno" });
+    expect([bruno.summary.sheet, bruno.summary.items]).toEqual(["Amostra_Bruno", 2]);
+    expect(bruno.project.title).toBe("r · Amostra_Bruno");
+  });
+
+  test("o modelo declarado continua tendo prioridade sobre a dedução", () => {
+    const wb = book({ Amostra_Ana: aba(), variables: VARS, items: [{ item_id: "1", texto: "material longo o suficiente aqui" }] });
+    const r = parseRoundWorkbook(wb, { fileName: "r.xlsx" });
+    expect(r.summary.inferred).toBe(false);
+    expect(inspectWorkbook(wb).mode).toBe("template");
+  });
+
+  test("material na última coluna: erro claro, não rodada vazia", () => {
+    expect(() => parseRoundWorkbook(book({ A: [{ ID: 1, texto: "material longo o suficiente para detectar" }] }), { fileName: "r.xlsx" })).toThrow(
+      expect.objectContaining({ code: "missingSheets" }),
+    );
   });
 });
