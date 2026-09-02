@@ -36,6 +36,15 @@ const shots = [
     offset: 0,
   },
   { file: "pt/05-importar.png", url: "/codificar/", lang: "pt", caption: "Carregar a própria planilha" },
+  { file: "pt/08-guia.png", url: "/guia/", lang: "pt", caption: "Guia (completo)", fullPage: true },
+  {
+    file: "pt/09-guia-confiabilidade.png",
+    url: "/guia/",
+    lang: "pt",
+    caption: "Guia: teste de confiabilidade",
+    scrollTo: "#reliability",
+    offset: -70,
+  },
   // Tema escuro
   { file: "pt/06-escuro-inicial.png", url: "/", lang: "pt", theme: "dark", caption: "Página inicial no escuro" },
   { file: "pt/07-escuro-codificacao.png", url: "/demo/", lang: "pt", theme: "dark", caption: "Tela de codificação no escuro" },
@@ -54,6 +63,7 @@ const shots = [
   },
   { file: "en/05-import.png", url: "/codificar/", lang: "en", caption: "Load your own spreadsheet" },
   { file: "en/06-dark-coding.png", url: "/demo/", lang: "en", theme: "dark", caption: "Coding screen, dark" },
+  { file: "en/07-guide.png", url: "/guia/", lang: "en", caption: "Guide (full page)", fullPage: true },
 ];
 
 const DEMO_KEYS = ["codifica-colab:demo:v1", "codifica-colab:demo:en:v1"];

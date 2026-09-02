@@ -140,7 +140,9 @@ async function scenarioGuide() {
   await goto("/", { clear: true });
   await clickButton("Guia");
   await sleep(900);
-  await expectEq("a navegação leva ao guia", await page.evaluate(() => location.pathname), "/guia/");
+  // No Pages o site mora em /codlab, então compara pelo fim do caminho.
+  const caminho = await page.evaluate(() => location.pathname);
+  check("a navegação leva ao guia", caminho.endsWith("/guia/"), caminho);
 
   const pagina = await page.evaluate(() => ({
     h1: document.querySelector("h1")?.textContent.trim(),
