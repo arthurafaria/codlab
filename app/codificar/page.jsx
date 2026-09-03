@@ -198,7 +198,17 @@ export default function CodificarPage() {
         codebook={round.codebook}
         codebookText={round.codebookDoc?.text || ""}
         notice={
-          round.summary?.inferred ? fmt(s.inferredNotice, { sheet: round.summary.sheet }) : null
+          // Com livro de códigos carregado o aviso vira relatório: dizer que a
+          // pergunta é o nome da coluna seria mentira, o documento deu as
+          // perguntas.
+          round.codebookDoc
+            ? fmt(s.mapReport, {
+                matched: round.codebookDoc.matched.length,
+                total: round.codebook.editableFields.length,
+              })
+            : round.summary?.inferred
+              ? fmt(s.inferredNotice, { sheet: round.summary.sheet })
+              : null
         }
         extraAction={
           <button
