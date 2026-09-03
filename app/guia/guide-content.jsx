@@ -203,6 +203,7 @@ export default function GuideContent() {
               <h3>{g.mapT}</h3>
               <p className="prose">{g.map1}</p>
               <p className="prose">{g.map2}</p>
+              <p className="prose">{g.map2b}</p>
               <p className="prose">{g.map3}</p>
             </div>
           </div>

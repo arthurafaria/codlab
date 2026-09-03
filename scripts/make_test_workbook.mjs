@@ -4,8 +4,10 @@
 //   bun scripts/make_test_workbook.mjs [destino.xlsx]
 
 import * as XLSX from "xlsx";
-import { buildSampleWorkbook, SAMPLE_SHEETS, SAMPLE_ROWS } from "../lib/samples.js";
+import { buildSampleWorkbook, SAMPLE_SHEETS, SAMPLE_ROWS, CODEBOOK_VARIABLES } from "../lib/samples.js";
 
 const out = process.argv[2] || "teste-uma-aba-por-codificador.xlsx";
 XLSX.writeFile(buildSampleWorkbook(), out);
-console.log(`${out}: ${SAMPLE_SHEETS.length} abas, ${SAMPLE_ROWS} linhas cada, 23 variáveis depois da coluna texto`);
+console.log(
+  `${out}: ${SAMPLE_SHEETS.length} abas, ${SAMPLE_ROWS} linhas cada, ${CODEBOOK_VARIABLES.length} variáveis depois da coluna texto`,
+);
