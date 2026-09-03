@@ -398,7 +398,7 @@ async function scenarioMultiSheet() {
     "Amostra", "Amostra_Ana", "Amostra_Bruno", "Amostra_Carla",
   ]);
   check("pergunta qual aba antes de abrir", picker.semFicha && /aba/i.test(picker.titulo), picker.titulo);
-  check("mostra linhas, variáveis e a coluna do material", /60 linhas · 24 variáveis · material em texto/.test(picker.meta), picker.meta);
+  check("mostra linhas, variáveis e a coluna do material", /10 linhas · 24 variáveis · material em texto/.test(picker.meta), picker.meta);
 
   // Escolhe a segunda aba: a rodada aberta tem que ser a dela.
   await page.evaluate(() => {
@@ -419,7 +419,7 @@ async function scenarioMultiSheet() {
     meta: [...document.querySelectorAll('[class*="metadata"] div')].map((d) => d.innerText.replace(/\n/g, "=")),
   }));
   await expectEq("abre a aba escolhida", aberta.titulo, "Rodada Piloto · Amostra_Ana");
-  check("60 registros", aberta.status.startsWith("Registro 001/60"), aberta.status);
+  check("10 registros, tamanho de demonstração", aberta.status.startsWith("Registro 001/10"), aberta.status);
   await expectEq("24 variáveis, todas na ficha", aberta.linhas, 24);
   check("avisa que o livro de códigos foi deduzido", /deduzido/i.test(aberta.aviso), aberta.aviso.slice(0, 70));
   await expectEq("agrupa pelo prefixo repetido", aberta.grupos, [
@@ -448,7 +448,7 @@ async function scenarioMultiSheet() {
   await clickButton("Copiar valores");
   const clip = await page.evaluate(() => window.__clip);
   const linhas = clip.split("\n");
-  await expectEq("exporta 60 linhas × 24 colunas", [linhas.length, linhas[0].split("\t").length], [60, 24]);
+  await expectEq("exporta 10 linhas × 24 colunas", [linhas.length, linhas[0].split("\t").length], [10, 24]);
 }
 
 // O documento entra junto com a planilha e vira o critério de cada variável.
@@ -508,6 +508,75 @@ async function scenarioCodebookDoc(ext) {
   await page.keyboard.press("Escape");
   await sleep(300);
   check("Esc fecha o painel", await page.evaluate(() => !document.querySelector(".codebook-panel")));
+}
+
+// Livro e planilha em versões diferentes: o nome mudou entre as duas.
+async function scenarioNameMapping() {
+  console.log("\n— De-para de nomes");
+  const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
+  const planilha = path.join(dir, "Rodada.xlsx");
+  execFileSync("bun", ["scripts/make_test_workbook.mjs", planilha], { stdio: "pipe" });
+
+  // Livro que chama Efeito_Panico de Funcao_Panico, como no caso real.
+  const doc = path.join(dir, "livro.md");
+  await writeFile(
+    doc,
+    [
+      "LIVRO DE CÓDIGOS",
+      "",
+      "1. Tipo_URL",
+      "Que tipo de fonte a URL aponta?",
+      "Classifique pelo domínio.",
+      "",
+      "2. Funcao_Panico",
+      "Tende a provocar alarme no leitor?",
+      "Variável binária. Apreensão sobre risco iminente.",
+      "",
+    ].join("\n"),
+    "utf8",
+  );
+
+  await goto("/codificar/", { clear: true });
+  await (await page.$("input[type=file]")).uploadFile(planilha, doc);
+  await sleep(1600);
+  await page.evaluate(() => {
+    const l = [...document.querySelectorAll(".sheet-row")].find((r) => r.querySelector(".sheet-row-name").textContent === "Amostra_Ana");
+    l.querySelector("button").click();
+  });
+  await sleep(1600);
+
+  const tela = await page.evaluate(() => ({
+    titulo: document.querySelector("h1")?.textContent.trim(),
+    relatorio: document.querySelector(".importer-head .overline")?.textContent || "",
+    semSecao: [...document.querySelectorAll(".map-key")].map((k) => k.textContent),
+    opcoes: [...(document.querySelector(".map-row:not(.map-head) select")?.options || [])].map((o) => o.textContent),
+  }));
+  check("abre a tela de de-para em vez de abrir a ficha torta", /Ligue os nomes/.test(tela.titulo), tela.titulo);
+  check("diz quantas casaram", /1 de 24/.test(tela.relatorio), tela.relatorio);
+  check("Efeito_Panico aparece como coluna sem seção", tela.semSecao.includes("Efeito_Panico"), tela.semSecao.slice(0, 4).join(", "));
+  check("Funcao_Panico é oferecido como seção livre", tela.opcoes.some((o) => o.startsWith("Funcao_Panico")), tela.opcoes.join(" | "));
+
+  await page.evaluate(() => {
+    const row = [...document.querySelectorAll(".map-row:not(.map-head)")].find((r) => r.querySelector(".map-key").textContent === "Efeito_Panico");
+    const sel = row.querySelector("select");
+    sel.value = [...sel.options].find((o) => o.textContent.startsWith("Funcao_Panico")).value;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await sleep(300);
+  await clickButton("Aplicar e abrir a ficha");
+  await sleep(1600);
+
+  const ficha = await page.evaluate(() => {
+    const r = [...document.querySelectorAll('[class*="fieldRow"]')].find((x) => x.querySelector('[class*="fieldKey"]')?.textContent.trim().startsWith("Efeito_Panico"));
+    return {
+      pergunta: r?.querySelector('[class*="fieldQuestion"]')?.textContent.trim(),
+      criterio: r?.querySelector('[class*="fieldHelp"]')?.textContent.trim(),
+      binaria: r?.querySelectorAll('[class*="segmented"] button').length === 2,
+    };
+  });
+  await expectEq("a coluna ligada recebe a pergunta do livro", ficha.pergunta, "Tende a provocar alarme no leitor?");
+  check("e recebe o critério", /risco iminente/.test(ficha.criterio || ""), ficha.criterio);
+  check('"variável binária" continua valendo depois do de-para', ficha.binaria, String(ficha.binaria));
 }
 
 async function scenarioImporterErrors() {
@@ -651,6 +720,7 @@ async function main() {
     () => scenarioCodebookDoc("docx"),
     () => scenarioCodebookDoc("pdf"),
     () => scenarioCodebookDoc("md"),
+    scenarioNameMapping,
     scenarioTheme,
     scenarioEnglishDemo,
   ];

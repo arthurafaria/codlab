@@ -4,6 +4,8 @@ import Link from "next/link";
 import { SiteNav, SiteFooter } from "@/components/site-chrome";
 import { useT } from "@/lib/i18n";
 
+// A home apresenta e sai da frente. Quem quer entender vai para o guia; quem
+// quer ver funcionando vai para a demo. Explicação longa mora no guia.
 export default function HomeContent() {
   const t = useT();
   const h = t.home;
@@ -22,7 +24,7 @@ export default function HomeContent() {
               <Link className="btn btn-primary" href="/demo/">
                 {h.ctaDemo}
               </Link>
-              <Link className="btn btn-dark" href="/codificar/">
+              <Link className="btn btn-ghost" href="/guia/">
                 {h.ctaLoad}
               </Link>
             </div>
@@ -52,93 +54,20 @@ export default function HomeContent() {
         <section className="band band-tint">
           <div className="shell">
             <div className="band-head">
-              <p className="overline">{h.problem.overline}</p>
-              <h2>{h.problem.title}</h2>
+              <p className="overline">{h.what.overline}</p>
+              <h2>{h.what.title}</h2>
             </div>
             <div className="grid-3">
-              <article className="card">
-                <h3>{h.problem.c1t}</h3>
-                <p className="prose">{h.problem.c1}</p>
-              </article>
-              <article className="card">
-                <h3>{h.problem.c2t}</h3>
-                <p className="prose">{h.problem.c2}</p>
-              </article>
-              <article className="card">
-                <h3>{h.problem.c3t}</h3>
-                <p className="prose">{h.problem.c3}</p>
-              </article>
+              {h.what.items.map(([title, body]) => (
+                <article className="card" key={title}>
+                  <h3>{title}</h3>
+                  <p className="prose">{body}</p>
+                </article>
+              ))}
             </div>
-          </div>
-        </section>
-
-        <section className="band" id="como-funciona">
-          <div className="shell">
-            <div className="band-head">
-              <p className="overline">{h.how.overline}</p>
-              <h2>{h.how.title}</h2>
-              <p className="prose">{h.how.lead}</p>
-            </div>
-            <div className="grid-3">
-              <article className="card">
-                <span className="step-n">1</span>
-                <h3>{h.how.s1t}</h3>
-                <p className="prose">{h.how.s1}</p>
-              </article>
-              <article className="card">
-                <span className="step-n">2</span>
-                <h3>{h.how.s2t}</h3>
-                <p className="prose">{h.how.s2}</p>
-              </article>
-              <article className="card">
-                <span className="step-n">3</span>
-                <h3>{h.how.s3t}</h3>
-                <p className="prose">
-                  <strong>{h.how.s3a}</strong>
-                  {h.how.s3b}
-                </p>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        <section className="band band-orange">
-          <div className="shell split-note">
-            <div className="band-head band-head-tight">
-              <p className="overline overline-on-orange">{h.reliability.overline}</p>
-              <h2>{h.reliability.title}</h2>
-              <p className="prose">{h.reliability.body}</p>
-            </div>
-            <div className="card">
-              <span className="tag tag-on">{h.reliability.tag}</span>
-              <h3>{h.reliability.key}</h3>
-              <p className="prose">{h.reliability.note}</p>
-            </div>
-          </div>
-        </section>
-
-        <section className="band band-dark">
-          <div className="shell">
-            <div className="band-head">
-              <p className="overline overline-on-dark">{h.data.overline}</p>
-              <h2>{h.data.title}</h2>
-            </div>
-            <div className="grid-2">
-              <article className="card">
-                <h3>{h.data.c1t}</h3>
-                <p className="prose">{h.data.c1}</p>
-              </article>
-              <article className="card">
-                <h3>{h.data.c2t}</h3>
-                <p className="prose">{h.data.c2}</p>
-              </article>
-            </div>
-            <div className="band-cta importer-actions">
-              <Link className="btn btn-primary" href="/demo/">
-                {h.data.cta}
-              </Link>
-              <Link className="btn btn-ghost" href="/guia/">
-                {t.nav.how}
+            <div className="band-cta">
+              <Link className="btn btn-dark" href="/guia/">
+                {h.what.cta}
               </Link>
             </div>
           </div>

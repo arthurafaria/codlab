@@ -45,6 +45,18 @@ export default function GuideContent() {
           <p className="script">{g.script}</p>
           <h1>{g.title}</h1>
           <p className="prose guide-lead">{g.lead}</p>
+          <ol className="quick-steps">
+            {g.quick.map(([title, body], i) => (
+              <li key={title}>
+                <span className="step-n">{i + 1}</span>
+                <div>
+                  <h3>{title}</h3>
+                  <p className="prose">{body}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+
           <nav className="guide-toc" aria-label={g.tocTitle}>
             <p className="overline">{g.tocTitle}</p>
             <ol>
@@ -185,6 +197,13 @@ export default function GuideContent() {
                 <h3 className="guide-subhead">{g.docPanelT}</h3>
                 <p className="prose">{g.docPanel}</p>
               </article>
+            </div>
+
+            <div className="rule-note guide-map-note">
+              <h3>{g.mapT}</h3>
+              <p className="prose">{g.map1}</p>
+              <p className="prose">{g.map2}</p>
+              <p className="prose">{g.map3}</p>
             </div>
           </div>
         </section>

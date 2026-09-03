@@ -1382,3 +1382,84 @@ textarea {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- De-para entre planilha e livro de códigos ---------- */
+
+.map-list {
+  display: grid;
+  gap: 8px;
+}
+
+.map-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.map-head {
+  background: transparent;
+  border: 0;
+  padding: 0 14px;
+  font-family: var(--font-mono), monospace;
+  font-size: 0.68rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.map-key {
+  background: transparent;
+  padding: 0;
+  color: var(--ink);
+  font-size: 0.86rem;
+  word-break: break-word;
+}
+
+.map-row select {
+  padding: 8px 11px;
+  font-size: 0.88rem;
+}
+
+/* Resumo de três passos no topo do guia. */
+.quick-steps {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 22px;
+}
+
+.quick-steps li {
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.quick-steps h3 {
+  font-size: 0.97rem;
+}
+
+.quick-steps .prose {
+  font-size: 0.93rem;
+}
+
+.guide-map-note {
+  margin-top: 34px;
+  display: grid;
+  gap: 12px;
+  max-width: 78ch;
+}
+
+@media (max-width: 940px) {
+  .quick-steps {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+}

@@ -33,6 +33,7 @@ export default function CodificarPage() {
   const s = t.importer;
   const [round, setRound] = useState(null);
   const [pending, setPending] = useState(null); // { buffer, fileName, sheets }
+  const [mapping, setMapping] = useState(null); // { round, aliases }
   const [dataFile, setDataFile] = useState(null); // { buffer, name }
   const [doc, setDoc] = useState(null); // { text, name }
   const [busy, setBusy] = useState(false);
@@ -51,14 +52,53 @@ export default function CodificarPage() {
   // basePath do Pages: o worker do pdf.js mora ao lado do site.
   const basePath = typeof window === "undefined" ? "" : window.location.pathname.split("/codificar")[0];
 
-  function open(buffer, fileName, sheetName, codebookDoc) {
-    const parsed = parseRoundWorkbook(buffer, { fileName, sheetName, codebookDoc });
+  function finish(parsed) {
     parsed.project.eyebrow = s.loadedEyebrow;
     if (!parsed.project.title) parsed.project.title = s.untitled;
     saveRound(parsed);
     refresh();
     setPending(null);
+    setMapping(null);
     setRound(parsed);
+  }
+
+  function open(buffer, fileName, sheetName, codebookDoc, aliases = {}) {
+    const parsed = parseRoundWorkbook(buffer, { fileName, sheetName, codebookDoc, aliases });
+    const cb = parsed.codebookDoc;
+    // Sobrou coluna sem seção e seção sem coluna: costuma ser renomeação entre
+    // as duas versões. Quem decide o de-para é o pesquisador, não o palpite.
+    const podeLigar =
+      cb && !Object.keys(aliases).length && cb.unmatched.length > 0 && cb.freeSections.length > 0;
+    if (podeLigar) {
+      setMapping({
+        buffer,
+        fileName,
+        sheetName,
+        codebookDoc,
+        unmatched: cb.unmatched,
+        sections: cb.freeSections,
+        matched: cb.matched.length,
+        total: parsed.codebook.editableFields.length,
+        chosen: {},
+      });
+      setPending(null);
+      return;
+    }
+    finish(parsed);
+  }
+
+  function applyMapping(aliases) {
+    try {
+      const parsed = parseRoundWorkbook(mapping.buffer, {
+        fileName: mapping.fileName,
+        sheetName: mapping.sheetName,
+        codebookDoc: mapping.codebookDoc,
+        aliases,
+      });
+      finish(parsed);
+    } catch (err) {
+      setError(errorMessage(err, t));
+    }
   }
 
   // A planilha diz quais variáveis existem; o documento diz por que se marcam.
@@ -124,6 +164,7 @@ export default function CodificarPage() {
     setDataFile(null);
     setDoc(null);
     setPending(null);
+    setMapping(null);
     setError("");
   }
 
@@ -166,6 +207,7 @@ export default function CodificarPage() {
             onClick={() => {
               setRound(null);
               setPending(null);
+              setMapping(null);
             }}
           >
             {t.coder.switchRound}
@@ -181,14 +223,67 @@ export default function CodificarPage() {
       <main id="main-content">
         <section className="shell importer">
           <div className="band-head importer-head">
-            <p className="script">{pending ? pending.fileName : s.script}</p>
-            <h1 className="importer-title">{pending ? s.sheetTitle : s.title}</h1>
-            <p className="prose">{pending ? s.sheetLead : s.lead}</p>
+            <p className="script">{mapping ? mapping.fileName : pending ? pending.fileName : s.script}</p>
+            <h1 className="importer-title">
+              {mapping ? s.mapTitle : pending ? s.sheetTitle : s.title}
+            </h1>
+            <p className="prose">{mapping ? s.mapLead : pending ? s.sheetLead : s.lead}</p>
+            {mapping ? (
+              <p className="overline">
+                {fmt(s.mapReport, { matched: mapping.matched, total: mapping.total })}
+              </p>
+            ) : null}
           </div>
 
           <div className="split-note">
             <div className="importer-main">
-              {pending ? (
+              {mapping ? (
+                <div className="map-list">
+                  <div className="map-row map-head" aria-hidden="true">
+                    <span>{s.mapColumn}</span>
+                    <span>{s.mapSection}</span>
+                  </div>
+                  {mapping.unmatched.map((key) => (
+                    <label className="map-row" key={key}>
+                      <code className="map-key">{key}</code>
+                      <select
+                        value={mapping.chosen[key] ?? ""}
+                        onChange={(e) =>
+                          setMapping((m) => ({
+                            ...m,
+                            chosen: { ...m.chosen, [key]: e.target.value },
+                          }))
+                        }
+                      >
+                        <option value="">{s.mapNone}</option>
+                        {mapping.sections.map((sec) => (
+                          <option key={sec.index} value={sec.index}>
+                            {sec.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
+                  <div className="importer-actions">
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      onClick={() =>
+                        applyMapping(
+                          Object.fromEntries(
+                            Object.entries(mapping.chosen).filter(([, v]) => v !== ""),
+                          ),
+                        )
+                      }
+                    >
+                      {s.mapApply}
+                    </button>
+                    <button type="button" className="btn btn-ghost btn-sm" onClick={() => applyMapping({})}>
+                      {s.mapSkip}
+                    </button>
+                  </div>
+                </div>
+              ) : pending ? (
                 <div className="sheet-list">
                   {pending.sheets.map((sheet) => (
                     <div
@@ -286,7 +381,7 @@ export default function CodificarPage() {
                 </div>
               ) : null}
 
-              {ready && !pending && stored.length > 0 ? (
+              {ready && !pending && !mapping && stored.length > 0 ? (
                 <section className="stored-rounds">
                   <p className="overline">{s.storedTitle}</p>
                   {stored.map((entry) => (
