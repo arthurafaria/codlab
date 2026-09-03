@@ -7,7 +7,11 @@ de volta para a planilha de origem — na ordem exata em que saiu.
 Desenvolvida no [coLAB/UFF](https://colab.meme). Interface em português e inglês;
 o seletor fica no topo e a escolha vale para o navegador.
 
-**No ar:** https://colab-uff.github.io/codlab/
+**No ar:** https://colab.meme/codlab/
+
+A organização usa domínio próprio, então o Pages do projeto responde em
+`colab.meme/codlab`. `colab-uff.github.io/codlab` também funciona e leva ao
+mesmo lugar.
 
 ## O que existe
 
@@ -79,7 +83,7 @@ Gere um exemplo nos três formatos com:
 bun scripts/make_codebook_doc.mjs pasta/
 ```
 
-Os mesmos arquivos ficam para download em [`/guia/`](https://colab-uff.github.io/codlab/guia/),
+Os mesmos arquivos ficam para download em [`/guia/`](https://colab.meme/codlab/guia/),
 gerados no navegador a partir de `lib/samples.js`.
 
 ### 3. Modelo declarado (com aba de variáveis)
@@ -147,8 +151,8 @@ Duas coisas precisam bater:
 
 1. Em **Settings › Pages**, deixar *Source* como **GitHub Actions**.
 2. `NEXT_PUBLIC_BASE_PATH` no workflow tem que ser `/<nome-do-repo>`. Está como
-   `/codlab`. Ao mover para outra conta ou organização, ajuste ali — é o erro que
-   faz o site subir sem CSS.
+   `/codlab`. Ao renomear o repositório, ajuste ali: é o erro que faz o site
+   subir sem CSS. Mudar de dono não afeta isso, só o nome importa.
 
 ## Teste de confiabilidade
 
