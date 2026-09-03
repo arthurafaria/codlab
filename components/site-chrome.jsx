@@ -5,7 +5,7 @@ import Wordmark, { BrandMark } from "./ui/wordmark";
 import { useT, LangSwitch } from "@/lib/i18n";
 import { ThemeSwitch } from "@/lib/theme";
 
-export const REPO_URL = "https://github.com/arthurafaria/codlab";
+export const REPO_URL = "https://github.com/colab-uff/codlab";
 export const LAB_URL = "https://colab.meme";
 
 export function SiteNav({ active }) {

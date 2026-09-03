@@ -7,7 +7,7 @@ de volta para a planilha de origem — na ordem exata em que saiu.
 Desenvolvida no [coLAB/UFF](https://colab.meme). Interface em português e inglês;
 o seletor fica no topo e a escolha vale para o navegador.
 
-**No ar:** https://arthurafaria.github.io/codlab/
+**No ar:** https://colab-uff.github.io/codlab/
 
 ## O que existe
 
@@ -79,7 +79,7 @@ Gere um exemplo nos três formatos com:
 bun scripts/make_codebook_doc.mjs pasta/
 ```
 
-Os mesmos arquivos ficam para download em [`/guia/`](https://arthurafaria.github.io/codlab/guia/),
+Os mesmos arquivos ficam para download em [`/guia/`](https://colab-uff.github.io/codlab/guia/),
 gerados no navegador a partir de `lib/samples.js`.
 
 ### 3. Modelo declarado (com aba de variáveis)
