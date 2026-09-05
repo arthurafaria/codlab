@@ -755,7 +755,7 @@ async function scenarioIntegridade() {
     status: document.querySelector('[class*=statusRow]')?.innerText.replace(/\s+/g, " "),
   }));
   const aviso = lerDialogo();
-  check("backup fora de ordem é aceito sem reclamar", aviso === "", aviso.slice(0, 70));
+  check("backup fora de ordem entra sem erro, para ser realinhado pelo ID", aviso === "", aviso.slice(0, 70));
   // O backup traz A com Marca falsa e nota "de A"; B com Marca verdadeira e
   // nota "de B". Alinhado pelo ID, a unidade A tem que receber as de A.
   const notaA = await page.evaluate(() => {
