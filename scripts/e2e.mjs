@@ -33,6 +33,25 @@ async function expectEq(name, actual, expected) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// Um handler só para toda a suíte. Com `once` por caso, um handler que não
+// dispara fica pendente e tenta aceitar o diálogo do caso seguinte, que já foi
+// aceito, derrubando a execução.
+let ultimoDialogo = "";
+const lerDialogo = () => {
+  const m = ultimoDialogo;
+  ultimoDialogo = "";
+  return m;
+};
+
+// O atalho global de Enter é ignorado quando o foco está num botão, porque ali
+// Enter já é o clique dele. Para exercitar o atalho, tira o foco antes, que é o
+// que acontece quando a pessoa está lendo a ficha e não navegando por botões.
+async function pressEnterGlobal() {
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.keyboard.press("Enter");
+  await sleep(400);
+}
+
 // O Chrome headless não garante o esquema de cor do sistema. Fixar deixa o
 // teste determinístico e ainda permite exercitar o caminho "seguir o sistema".
 async function prefer(scheme) {
@@ -249,18 +268,25 @@ async function scenarioDemoCoding() {
   const row = await fieldRow("Assunto_1");
   const sel = await row.$("select");
   await sel.select("Saúde e Bem-estar");
-  await sleep(200);
+  // A gravação é adiada para digitar não custar uma escrita por tecla.
+  await sleep(600);
 
   const saved = await page.evaluate(() => JSON.parse(localStorage.getItem("codifica-colab:demo:v1")));
   await expectEq("rascunho salvo no localStorage", [saved.records[17].Marco_Apelo, saved.records[17].Assunto_1, saved.index], [true, "Saúde e Bem-estar", 17]);
+  // O texto da unidade já está na definição da rodada. Recopiá-lo a cada
+  // resposta faz o rascunho crescer com o corpus, não com o trabalho feito.
+  check(
+    "rascunho guarda respostas, não o corpus",
+    saved.records.every((r) => !("texto" in r) && r.ID !== undefined),
+    Object.keys(saved.records[17]).join(", "),
+  );
 
   await page.reload({ waitUntil: "networkidle0" });
   await sleep(500);
   check("reload mantém o registro", (await status()).startsWith("Registro 018/30"), await status());
   await expectEq("reload mantém a resposta", await booleanState("Marco_Apelo"), ["false", "true"]);
 
-  await page.keyboard.press("Enter");
-  await sleep(350);
+  await pressEnterGlobal();
   check("Enter marca revisado e avança", (await status()).startsWith("Registro 019/30") && (await status()).includes("18/30 revisados"), await status());
 
   await page.keyboard.press("ArrowLeft");
@@ -302,7 +328,25 @@ async function scenarioExport() {
   await sleep(400);
   const csv = await page.evaluate(() => window.__blob);
   // Blob.text() remove o BOM na decodificação; o arquivo em disco o mantém.
-  check("CSV baixado com cabeçalho e 30 linhas", csv && csv.type.startsWith("text/csv") && csv.text.startsWith("Assunto_1,Assunto_2,") && csv.text.trim().split("\n").length === 31, csv?.text.slice(0, 40));
+  const csvLinhas = (csv?.text || "").trim().split("\n");
+  // SheetJS cita o primeiro campo de propósito: CSV começando em ID sem aspas o
+  // Excel abre como SYLK e recusa o arquivo.
+  const csvCab = (csvLinhas[0] || "").split(",").map((v) => v.replace(/^"|"$/g, ""));
+  const csvL1 = (csvLinhas[1] || "").split(",");
+  check(
+    "CSV baixado leva ID, revisado e 30 linhas",
+    csv?.type.startsWith("text/csv") &&
+      csvCab.slice(0, 3).join(",") === "ID,revisado,Assunto_1" &&
+      csvCab.at(-1) === "OBS" &&
+      csvLinhas.length === 31,
+    csvLinhas[0]?.slice(0, 70),
+  );
+  check(
+    "cada linha do CSV identifica a unidade e diz se foi revisada",
+    csvL1[0] !== "" && ["Sim", "Não"].includes(csvL1[1]) &&
+      csvLinhas.slice(1).every((l) => { const c = l.split(","); return c[0] !== "" && ["Sim", "Não"].includes(c[1]); }),
+    csvL1.slice(0, 3).join(" | "),
+  );
 
   await clickButton("Baixar backup");
   await sleep(400);
@@ -315,7 +359,6 @@ async function scenarioExport() {
 async function scenarioRestore() {
   console.log("\n— Demo: restaurar");
   await goto("/demo/", { clear: true });
-  page.once("dialog", (d) => d.accept());
   await clickButton("Restaurar");
   await sleep(400);
   check("Restaurar zera progresso e volta ao 001", (await status()).startsWith("Registro 001/30") && (await status()).includes("0/30 revisados"), await status());
@@ -359,8 +402,7 @@ async function scenarioImporter() {
   const clip = await page.evaluate(() => window.__clip);
   check("multi_select sai separado por | na ordem do livro", clip.split("\n")[0].split("\t")[2] === "Números|Autoridade", clip.split("\n")[0]);
 
-  await page.keyboard.press("Enter");
-  await sleep(300);
+  await pressEnterGlobal();
   check("revisado avança para 002 com 1/2", (await status()).startsWith("Registro 002/2") && (await status()).includes("1/2 revisados"), await status());
 
   await clickButton("Trocar rodada");
@@ -633,6 +675,114 @@ async function scenarioNameMapping() {
   check("Funcao_Panico liga em Efeito_Panico sozinho, sem de-para", !semDePara.pediu && /risco iminente/.test(semDePara.criterio), JSON.stringify(semDePara).slice(0, 90));
 }
 
+// Integridade do dado: cada cenário aqui reproduz um defeito que já alterou
+// resposta de quem tinha codificado, em silêncio.
+async function scenarioIntegridade() {
+  console.log("\n— Integridade do dado");
+  lerDialogo(); // descarta confirmação pendente de cenário anterior
+  const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
+
+  // Planilha já respondida: TRUE tem que continuar TRUE na tela e na saída.
+  const XLSX = await import("xlsx");
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(
+    wb,
+    XLSX.utils.json_to_sheet([
+      { ID: "A", texto: "primeira unidade com texto longo o bastante para detectar https://www.instagram.com/p/CabCdEfGhIj/", Marca: "TRUE", Nota: "de A" },
+      { ID: "B", texto: "segunda unidade com texto longo o bastante para detectar", Marca: "FALSE", Nota: "de B" },
+    ]),
+    "Amostra",
+  );
+  const respondida = path.join(dir, "respondida.xlsx");
+  await writeFile(respondida, Buffer.from(XLSX.write(wb, { type: "array", bookType: "xlsx" })));
+
+  await goto("/codificar/", { clear: true });
+  await (await page.$("input[type=file]")).uploadFile(respondida);
+  await sleep(1600);
+
+  const marca = await booleanState("Marca");
+  await expectEq("TRUE da planilha aparece como Sim, não como Não", marca, ["false", "true"]);
+
+  // Prévia de terceiro não pode carregar sozinha: quem serve o post ficaria
+  // sabendo qual material está sendo analisado, sem ninguém ter pedido.
+  const previa = async () => page.evaluate(() => ({
+    iframes: document.querySelectorAll('[class*="previews"] iframe').length,
+    botao: [...document.querySelectorAll('[class*="previews"] button')].map((b) => b.textContent.trim()),
+  }));
+  const antes = await previa();
+  check(
+    "prévia de rede social não carrega sem pedir",
+    antes.iframes === 0 && antes.botao.includes("Carregar prévia"),
+    JSON.stringify(antes),
+  );
+  await clickButton("Carregar prévia");
+  await sleep(600);
+  check("botão Carregar prévia traz o post", (await previa()).iframes === 1, JSON.stringify(await previa()));
+
+  await clickButton("Copiar valores");
+  const clip = await page.evaluate(() => window.__clip);
+  check("e sai TRUE na colagem", clip.split("\n")[0].startsWith("TRUE"), clip.split("\n")[0]);
+
+  // Exportação de entrega leva ID e estado de revisão.
+  await clickButton("CSV");
+  await sleep(500);
+  const csv = await page.evaluate(() => window.__blob);
+  // A biblioteca cita a primeira célula de propósito: "ID" no começo do arquivo
+  // é a assinatura de SYLK, e sem aspas o Excel recusaria abrir.
+  const linhasCsv = csv.text.replace(/^\ufeff/, "").split("\n");
+  check("CSV leva ID e coluna revisado", /^"?ID"?,revisado,/.test(linhasCsv[0]), linhasCsv[0]);
+  check("unidade não revisada sai marcada como não revisada", linhasCsv[1].startsWith("A,Não,"), linhasCsv[1]);
+
+  // Backup trocado de ordem tem que ser recusado, não aceito em silêncio.
+  const trocado = path.join(dir, "trocado.json");
+  await writeFile(
+    trocado,
+    JSON.stringify({
+      version: 1,
+      index: 0,
+      reviewed: { 0: true, 1: true },
+      records: [
+        { id: 2, ID: "B", Marca: true, Nota: "de B" },
+        { id: 1, ID: "A", Marca: false, Nota: "de A" },
+      ],
+    }),
+    "utf8",
+  );
+  const inputs = await page.$$('input[type=file]');
+  await inputs[inputs.length - 1].uploadFile(trocado);
+  await sleep(900);
+  const depois = await page.evaluate(() => ({
+    status: document.querySelector('[class*=statusRow]')?.innerText.replace(/\s+/g, " "),
+  }));
+  const aviso = lerDialogo();
+  check("backup fora de ordem é aceito sem reclamar", aviso === "", aviso.slice(0, 70));
+  // O backup traz A com Marca falsa e nota "de A"; B com Marca verdadeira e
+  // nota "de B". Alinhado pelo ID, a unidade A tem que receber as de A.
+  const notaA = await page.evaluate(() => {
+    const r = [...document.querySelectorAll('[class*="fieldRow"]')].find((x) =>
+      x.querySelector('[class*="fieldKey"]')?.textContent.trim().startsWith("Nota"),
+    );
+    return r?.querySelector("textarea")?.value || "";
+  });
+  await expectEq("a unidade A recebe a nota de A, não a de B", notaA, "de A");
+  await expectEq("e a resposta booleana de A, não a de B", await booleanState("Marca"), ["true", "false"]);
+  check("não inventa progresso", /2\/2 revisados/.test(depois.status), depois.status);
+
+  // E um backup de outra rodada tem que ser recusado com o motivo.
+  const outro = path.join(dir, "outra-rodada.json");
+  await writeFile(
+    outro,
+    JSON.stringify({ version: 1, index: 0, reviewed: {}, records: [{ ID: "X" }, { ID: "Y" }] }),
+    "utf8",
+  );
+  const campos2 = await page.$$('input[type=file]');
+  await campos2[campos2.length - 1].uploadFile(outro);
+  await sleep(900);
+  const recusa = lerDialogo();
+  check("backup de outra rodada é recusado com o motivo", /outra rodada/i.test(recusa), recusa.slice(0, 80));
+  await expectEq("e nada foi sobrescrito", await booleanState("Marca"), ["true", "false"]);
+}
+
 async function scenarioImporterErrors() {
   console.log("\n— Importar: erros legíveis");
   const dir = await mkdtemp(path.join(tmpdir(), "codlab-"));
@@ -757,6 +907,10 @@ async function main() {
   });
   page = await browser.newPage();
   await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: "light" }]);
+  page.on("dialog", async (d) => {
+    ultimoDialogo = d.message();
+    await d.accept();
+  });
   const pageErrors = [];
   page.on("pageerror", (e) => pageErrors.push(String(e).slice(0, 160)));
   await installSpies();
@@ -769,6 +923,7 @@ async function main() {
     scenarioExport,
     scenarioRestore,
     scenarioImporter,
+    scenarioIntegridade,
     scenarioImporterErrors,
     scenarioMultiSheet,
     () => scenarioCodebookDoc("docx"),

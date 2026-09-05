@@ -97,3 +97,40 @@ describe("applyCodebookDoc", () => {
     expect(applyCodebookDoc(campos, null)).toBe(campos);
   });
 });
+
+// Regressões: casamento que parecia certo e entregava critério de outra variável.
+describe("seções falsas e colisão de nome", () => {
+  test("instrução numerada não vira seção e não corta a variável", () => {
+    const doc = [
+      "LIVRO",
+      "1. Leia o material inteiro antes de marcar.",
+      "2. Não combine respostas com o outro codificador.",
+      "",
+      "Desinfo_Emocional",
+      "Recorre a apelo emocional?",
+      "Critério verdadeiro da variável, que não pode ser cortado.",
+    ].join("\n");
+    const d = parseCodebookDoc(doc, ["Desinfo_Emocional"]);
+    expect(d.entries.Desinfo_Emocional.help).toContain("não pode ser cortado");
+    expect(d.freeSections.map((s) => s.label)).toEqual([]);
+  });
+
+  test("Tipo_URL não abocanha a seção de Tipo_URL_2", () => {
+    const doc = "Tipo_URL_2\nSegunda classificação da URL?\nOpções: X | Y";
+    const d = parseCodebookDoc(doc, ["Tipo_URL"]);
+    expect(d.matched).toEqual([]);
+    expect(d.freeSections.map((s) => s.label)).toEqual(["Tipo_URL_2"]);
+  });
+
+  test("mas a variável certa continua casando com a própria seção", () => {
+    const doc = "Tipo_URL_2\nSegunda classificação?\nOpções: X | Y\n\nTipo_URL\nPrimeira?\nOpções: A | B";
+    const d = parseCodebookDoc(doc, ["Tipo_URL", "Tipo_URL_2"]);
+    expect(d.entries.Tipo_URL.options).toEqual(["A", "B"]);
+    expect(d.entries.Tipo_URL_2.options).toEqual(["X", "Y"]);
+  });
+
+  test("nome colado na pergunta, como em PDF de tabela, continua casando", () => {
+    const d = parseCodebookDoc("13 Tema_1Qual o tema predominante?", ["Tema_1"]);
+    expect(d.entries.Tema_1.question).toBe("Qual o tema predominante?");
+  });
+});

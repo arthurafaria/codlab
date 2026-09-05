@@ -720,3 +720,57 @@
   background: currentColor;
   transform: rotate(-45deg);
 }
+
+/* Portão da prévia: o iframe de terceiro só entra a pedido. */
+.gate {
+  padding: 16px 18px;
+  display: grid;
+  gap: 12px;
+}
+
+.gate p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.gateActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.gateLoad {
+  padding: 8px 16px;
+  border: 1px solid var(--line-hover);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.gateLoad:hover {
+  border-color: var(--accent);
+  color: var(--accent-on-soft);
+}
+
+.gateAlways {
+  border: 0;
+  background: none;
+  padding: 0;
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.8rem;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.gateAlways:hover {
+  color: var(--text);
+}

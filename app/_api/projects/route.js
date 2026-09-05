@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createProjectPackage } from "@/lib/db";
 import { extractImages, readCodebook, storeImages } from "@/lib/files";
-import { parseTemplateCsv, parseTemplateWorkbook, parseVariablesFromCodebook, validateItems, validateVariables } from "@/lib/template";
+import { parseTemplateCsv, parseTemplateWorkbook, parseVariablesFromCodebook, validateItems, validateVariables } from "@/lib/archived/template";
 import { DEFAULT_SHEET_NAME } from "@/lib/constants";
 
 export const runtime = "nodejs";

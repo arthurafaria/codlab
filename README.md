@@ -20,7 +20,7 @@ mesmo lugar.
 | `/` | Página inicial: o que a ferramenta resolve e como funciona. |
 | `/guia/` | Como montar a planilha e o livro de códigos, como codificar e como sair daqui para o teste de confiabilidade. Traz os arquivos de exemplo para baixar. |
 | `/demo/` | Rodada de exemplo — 30 unidades fictícias, 28 variáveis, já pela metade. Nenhum dado real. |
-| `/codificar/` | Carrega a sua planilha e o livro de códigos, e abre a ficha. Nada sai do navegador. |
+| `/codificar/` | Carrega a sua planilha e o livro de códigos, e abre a ficha. A leitura acontece na sua máquina. |
 
 ## O formato da planilha
 
@@ -37,8 +37,9 @@ preenchidos na coluna:
 |---|---|
 | só TRUE/FALSE, 0/1, sim/não | booleana |
 | só números | número |
-| 2 a 15 respostas curtas repetidas | seleção, com essas opções |
-| o resto, ou coluna vazia, ou nome tipo `OBS` | texto livre |
+| até 20 respostas curtas repetidas | seleção, com essas opções |
+| coluna vazia | booleana, para dar para marcar |
+| o resto, ou nome tipo `OBS` | texto livre |
 
 Prefixo repetido em duas ou mais colunas vira grupo na ficha: `Desinfo_*` fica
 sob "Desinfo". Data e hora que o Excel guardou como número (`46110`, `0,9631`)
@@ -172,6 +173,19 @@ navegador e guardada no `localStorage` daquela máquina; o progresso também. Pa
 juntar o trabalho de vários codificadores, cada um baixa um backup `.json` ou cola
 o bloco de colunas na planilha compartilhada.
 
+Prévia de post não carrega sozinha. O iframe é servido pela própria
+plataforma, então abri-lo conta a ela qual material está sendo analisado; o
+botão **Carregar prévia** deixa isso na mão de quem codifica, e "carregar
+sempre" grava a escolha no navegador.
+
+**Copiar valores** e **exportar** servem a coisas diferentes. A colagem sai só com
+as colunas de variável, na ordem da sua aba, para casar célula a célula. O CSV e o
+XLSX são entrega: levam também o `ID` da unidade e uma coluna `revisado`, porque
+sem ela "respondeu Não" e "não avaliou" saem idênticos.
+
+O backup `.json` é restaurado **pelo ID da unidade**, não pela posição na lista.
+Backup de outra rodada, com ID repetido ou sem ID é recusado com o motivo.
+
 Corpus de pesquisa **não entra neste repositório**. O `.gitignore` bloqueia
 `src/data/texts.js`, `src/data/codebook-desinfo.js` e `app/rodada/`, que é onde
 fica a rodada real em uso local.
@@ -179,11 +193,18 @@ fica a rodada real em uso local.
 ## Painel do orientador
 
 A versão multi-projeto (o orientador cria a rodada, distribui links privados e
-acompanha as respostas) depende de banco, storage e Google Sheets — coisas que o
-GitHub Pages não roda. O código está preservado em `app/_platform`, `app/_admin`,
-`app/_code` e `app/_api`. Pastas com `_` não viram rota no Next: para reativar,
-remova o prefixo e faça o deploy num ambiente com servidor (Vercel), seguindo
-`DEPLOYMENT.md`.
+acompanha as respostas) está **arquivada e incompleta**. O código continua em
+`app/_platform`, `app/_admin`, `app/_code` e `app/_api`; pastas com `_` não viram
+rota no Next, então nada disso é construído hoje.
+
+Reativar não é remover o prefixo. Falta pelo menos:
+
+- tirar `output: "export"` de `next.config.mjs`, que impede rota dinâmica e API;
+- restaurar `src/data/codebook.js`, que `lib/template.js` importa e está no
+  `.gitignore` junto com o corpus;
+- provisionar banco, storage e credenciais do Google, como em `DEPLOYMENT.md`.
+
+Trate como ponto de partida, não como funcionalidade pronta para ligar.
 
 ## Prints
 

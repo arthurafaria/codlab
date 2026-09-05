@@ -10,6 +10,21 @@ const HAS_API = process.env.NEXT_PUBLIC_HAS_API === "1";
 
 const URL_RE = /(https?:\/\/[^\s<>"')\]]+)/gi;
 
+// Prévia de rede social é iframe de terceiro: quem serve o post fica sabendo
+// qual material está sendo analisado, e quando. Numa pesquisa de desinformação
+// isso não é detalhe, então a prévia só carrega quando a pessoa pede. Quem
+// prefere o comportamento antigo marca uma vez e vale para o navegador.
+const PREVIEW_PREF = "codlab:previews";
+const EMBEDS = new Set(["youtube", "instagram", "tweet", "tiktok", "facebook"]);
+
+function lerPref() {
+  try {
+    return localStorage.getItem(PREVIEW_PREF) === "auto";
+  } catch {
+    return false;
+  }
+}
+
 // Extrai URLs de dentro do texto, remove duplicatas e pontuação final.
 export function extractLinks(text) {
   if (!text) return [];
@@ -184,8 +199,48 @@ function FacebookPreview({ info }) {
   );
 }
 
-function OnePreview({ link }) {
+function PreviewGate({ info, label, onLoad, onAlways }) {
+  const t = useT();
+  return (
+    <div className={styles.preview}>
+      <Bar url={info.url} label={label} />
+      <div className={styles.gate}>
+        <p>{fmt(t.coder.previewNote, { host: label })}</p>
+        <div className={styles.gateActions}>
+          <button type="button" className={styles.gateLoad} onClick={onLoad}>
+            {t.coder.loadPreview}
+          </button>
+          <button type="button" className={styles.gateAlways} onClick={onAlways}>
+            {t.coder.alwaysLoad}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const EMBED_LABEL = {
+  youtube: "YouTube",
+  instagram: "Instagram",
+  tweet: "X / Twitter",
+  tiktok: "TikTok",
+  facebook: "Facebook",
+};
+
+function OnePreview({ link, auto, onAlways }) {
   const info = classify(link);
+  const [pedido, setPedido] = useState(false);
+
+  if (EMBEDS.has(info.type) && !auto && !pedido) {
+    return (
+      <PreviewGate
+        info={info}
+        label={EMBED_LABEL[info.type] || info.host}
+        onLoad={() => setPedido(true)}
+        onAlways={onAlways}
+      />
+    );
+  }
 
   if (info.type === "youtube") {
     return (
@@ -228,11 +283,23 @@ function OnePreview({ link }) {
 }
 
 export function LinkPreviews({ links }) {
+  const [auto, setAuto] = useState(false);
+  useEffect(() => setAuto(lerPref()), []);
+
+  function sempre() {
+    try {
+      localStorage.setItem(PREVIEW_PREF, "auto");
+    } catch {
+      // Sem storage a escolha vale só para esta sessão, o que já basta.
+    }
+    setAuto(true);
+  }
+
   if (!links.length) return null;
   return (
     <div className={styles.previews}>
       {links.map((link) => (
-        <OnePreview key={link} link={link} />
+        <OnePreview key={link} link={link} auto={auto} onAlways={sempre} />
       ))}
     </div>
   );

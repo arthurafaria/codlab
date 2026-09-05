@@ -27,6 +27,11 @@ jobs:
 
       - run: bun install --frozen-lockfile
 
+      # Publicar sem testar já deixou passar bug que alterava resposta de quem
+      # tinha codificado. Falhou aqui, não publica.
+      - name: Testes de integridade
+        run: bun test
+
       - name: Gerar site estático
         run: bun run build
         env:

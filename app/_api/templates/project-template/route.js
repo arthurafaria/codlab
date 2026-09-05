@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createTemplateWorkbook } from "@/lib/template";
+import { createTemplateWorkbook } from "@/lib/archived/template";
 
 export const runtime = "nodejs";
 

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { addProjectVariablesFromCodebook, getProjectByAdminToken } from "@/lib/db";
-import { parseVariablesFromCodebook, validateVariables } from "@/lib/template";
+import { parseVariablesFromCodebook, validateVariables } from "@/lib/archived/template";
 
 export const runtime = "nodejs";
 

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import * as XLSX from "xlsx";
 import { LinkPreviews, extractLinks } from "./link-preview";
 import { SiteNav } from "@/components/site-chrome";
 import { useT, useLang, fmt } from "@/lib/i18n";
@@ -11,6 +10,8 @@ import {
   buildPasteRows,
   serializeValue,
   missingRequiredFields,
+  alignBackup,
+  draftAnswers,
 } from "@/lib/coding";
 import styles from "./coder.module.css";
 
@@ -72,10 +73,10 @@ function CodebookPanel({ text, onClose, labels }) {
   );
 }
 
-function BooleanControl({ value, onChange }) {
+function BooleanControl({ value, onChange, labelledBy }) {
   const labels = useT().coder;
   return (
-    <div className={styles.segmented} role="radiogroup">
+    <div className={styles.segmented} role="radiogroup" aria-labelledby={labelledBy}>
       <button
         type="button"
         role="radio"
@@ -98,9 +99,9 @@ function BooleanControl({ value, onChange }) {
   );
 }
 
-function FieldControl({ field, value, onChange }) {
+function FieldControl({ field, value, onChange, labelledBy }) {
   if (field.type === "boolean") {
-    return <BooleanControl value={value} onChange={onChange} />;
+    return <BooleanControl value={value} onChange={onChange} labelledBy={labelledBy} />;
   }
   if (field.type === "select") {
     const options = field.options || [];
@@ -108,6 +109,7 @@ function FieldControl({ field, value, onChange }) {
     return (
       <select
         className={styles.select}
+        aria-labelledby={labelledBy}
         value={value || ""}
         onChange={(event) => onChange(event.target.value || "")}
       >
@@ -129,7 +131,7 @@ function FieldControl({ field, value, onChange }) {
       onChange((field.options || []).filter((o) => next.includes(o)).join("|"));
     };
     return (
-      <div className={styles.checkGroup}>
+      <div className={styles.checkGroup} role="group" aria-labelledby={labelledBy}>
         {(field.options || []).map((option) => (
           <label key={option} className={styles.checkOption}>
             <input type="checkbox" checked={picked.includes(option)} onChange={() => toggle(option)} />
@@ -143,6 +145,7 @@ function FieldControl({ field, value, onChange }) {
     return (
       <input
         className={styles.select}
+        aria-labelledby={labelledBy}
         type="number"
         value={value ?? ""}
         onChange={(event) => onChange(event.target.value)}
@@ -152,6 +155,7 @@ function FieldControl({ field, value, onChange }) {
   return (
     <textarea
       className={styles.textarea}
+      aria-labelledby={labelledBy}
       value={value || ""}
       onChange={(event) => onChange(event.target.value)}
       rows={3}
@@ -173,8 +177,8 @@ export default function CoderScreen({
   const { editableFields, metaFields, binaryFormats, defaultBinaryFormat, textField } = codebook;
 
   const layout = useMemo(
-    () => computeLayout(editableFields, project.codedBlockStart ?? 10),
-    [editableFields, project.codedBlockStart],
+    () => computeLayout(editableFields, project.codedBlockStart ?? 10, project.sheetOrder),
+    [editableFields, project.codedBlockStart, project.sheetOrder],
   );
 
   const [ready, setReady] = useState(false);
@@ -184,6 +188,7 @@ export default function CoderScreen({
   const [binaryFormat, setBinaryFormat] = useState(defaultBinaryFormat);
   const [copyStatus, setCopyStatus] = useState("");
   const [lastSaved, setLastSaved] = useState("");
+  const [saveFailed, setSaveFailed] = useState(false);
   const copyTimer = useRef(null);
   const fileInputRef = useRef(null);
   const [showCodebook, setShowCodebook] = useState(false);
@@ -219,14 +224,50 @@ export default function CoderScreen({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Escrita adiada: digitar uma observação não pode custar uma gravação por
+  // tecla. O pendente é gravado no fim da pausa, ao sair da tela e ao fechar a
+  // aba, para nenhuma resposta ficar só na memória.
+  const rascunhoPendente = useRef(null);
+  const gravarRascunho = useRef(() => {});
+  gravarRascunho.current = () => {
+    const payload = rascunhoPendente.current;
+    if (payload === null) return;
+    rascunhoPendente.current = null;
+    try {
+      localStorage.setItem(project.storageKey, payload);
+      setSaveFailed(false);
+      setLastSaved(new Date().toLocaleTimeString(lang === "en" ? "en-US" : "pt-BR"));
+    } catch {
+      // Cota estourada ou storage bloqueado. Antes isso passava calado e a
+      // tela seguia dizendo "salvo", que é a pior forma de perder trabalho.
+      setSaveFailed(true);
+    }
+  };
+
   useEffect(() => {
-    if (!ready) return;
-    localStorage.setItem(
-      project.storageKey,
-      JSON.stringify({ records, reviewed, index, binaryFormat, updatedAt: new Date().toISOString() }),
-    );
-    setLastSaved(new Date().toLocaleTimeString(lang === "en" ? "en-US" : "pt-BR"));
-  }, [ready, records, reviewed, index, binaryFormat, project.storageKey]);
+    if (!ready) return undefined;
+    rascunhoPendente.current = JSON.stringify({
+      records: draftAnswers(records, editableFields),
+      reviewed,
+      index,
+      binaryFormat,
+      updatedAt: new Date().toISOString(),
+    });
+    const timer = setTimeout(() => gravarRascunho.current(), 250);
+    // Só cancela o disparo. Gravar aqui devolveria o payload anterior e o
+    // rascunho ficaria sempre um passo atrás do que está na tela.
+    return () => clearTimeout(timer);
+  }, [ready, records, reviewed, index, binaryFormat, editableFields, project.storageKey]);
+
+  // Sair da tela ou fechar a aba grava o que ainda estava na pausa.
+  useEffect(() => {
+    const flush = () => gravarRascunho.current();
+    window.addEventListener("pagehide", flush);
+    return () => {
+      window.removeEventListener("pagehide", flush);
+      flush();
+    };
+  }, []);
 
   const total = records.length;
   const current = records[index];
@@ -290,22 +331,33 @@ export default function CoderScreen({
     );
   }
 
+  // A colagem tem que casar coluna a coluna com a planilha, então não leva
+  // nada a mais. O arquivo exportado é entrega: leva o ID e se a unidade foi
+  // mesmo revisada, senão "não avaliado" e "respondeu Não" saem iguais.
   function makeAoa() {
     const fmtBin = binaryFormats[binaryFormat];
     return [
-      layout.pasteHeaders,
-      ...records.map((record) => layout.pasteFields.map((field) => serializeValue(record, field, fmtBin))),
+      ["ID", c.reviewedColumn, ...layout.pasteHeaders],
+      ...records.map((record, i) => [
+        record.ID,
+        reviewed[i] ? c.yes : c.no,
+        ...layout.pasteFields.map((field) => serializeValue(record, field, fmtBin)),
+      ]),
     ];
   }
 
-  function exportXlsx() {
+  // A biblioteca de planilha entra só na hora de exportar: quem abre a demo
+  // para ler não precisa baixar os ~139 KB dela.
+  async function exportXlsx() {
+    const XLSX = await import("xlsx");
     const sheet = XLSX.utils.aoa_to_sheet(makeAoa());
     const book = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(book, sheet, project.sheetName || "codificacao");
     XLSX.writeFile(book, `${project.exportBasename || "codificacao"}.xlsx`);
   }
 
-  function exportCsv() {
+  async function exportCsv() {
+    const XLSX = await import("xlsx");
     const sheet = XLSX.utils.aoa_to_sheet(makeAoa());
     const csv = XLSX.utils.sheet_to_csv(sheet);
     downloadText(`${project.exportBasename || "codificacao"}.csv`, `﻿${csv}`, "text/csv;charset=utf-8");
@@ -345,11 +397,14 @@ export default function CoderScreen({
     reader.onload = () => {
       try {
         const data = JSON.parse(String(reader.result));
-        if (!Array.isArray(data.records) || data.records.length !== sourceRecords.length) {
-          window.alert(c.backupBadCount);
+        // Alinhamento por ID: aceitar pela posição já contaminou rodada inteira
+        // quando a planilha foi reordenada ou o backup era de outra pessoa.
+        const { registros, erro, id } = alignBackup(sourceRecords, data.records);
+        if (erro) {
+          window.alert(fmt(c.backupErro[erro] || c.backupUnreadable, { id: id ?? "" }));
           return;
         }
-        setRecords(buildRecords(sourceRecords, layout, codebook, data.records));
+        setRecords(buildRecords(sourceRecords, layout, codebook, registros));
         setReviewed(data.reviewed || {});
         setIndex(Math.min(data.index ?? 0, sourceRecords.length - 1));
         flash(c.backupLoaded);
@@ -364,6 +419,9 @@ export default function CoderScreen({
     function onKey(event) {
       const tag = event.target.tagName;
       if (tag === "TEXTAREA" || tag === "INPUT" || tag === "SELECT") return;
+      // Num botão, Enter já é o clique dele. Disparar o atalho global aqui
+      // marcaria revisado sem querer para quem navega por teclado.
+      if (event.key === "Enter" && (tag === "BUTTON" || tag === "A")) return;
       if (event.key === "ArrowLeft") goTo(index - 1);
       else if (event.key === "ArrowRight") goTo(index + 1);
       else if (event.key === "Enter") markReviewedAndAdvance();
@@ -451,7 +509,7 @@ export default function CoderScreen({
               <strong>{fmt(c.record, { i: String(index + 1).padStart(3, "0"), n: total, id: current.ID })}</strong>
               <span>
                 {fmt(c.reviewed, { r: reviewedCount, n: total, p: percent })}
-                {lastSaved ? ` · ${fmt(c.saved, { t: lastSaved })}` : ""}
+                {saveFailed ? ` · ${c.saveFailed}` : lastSaved ? ` · ${fmt(c.saved, { t: lastSaved })}` : ""}
                 {copyStatus ? ` · ${copyStatus}` : ""}
               </span>
             </div>
@@ -469,6 +527,12 @@ export default function CoderScreen({
                 : "",
             })}
           </p>
+
+          {!layout.pasteAligned || !layout.pasteContiguous ? (
+            <p className="notice notice-bad" role="alert">
+              {!layout.pasteContiguous ? c.pasteGap : c.pasteReordered}
+            </p>
+          ) : null}
 
           {notice ? <p className="inferred-notice">{notice}</p> : null}
 
@@ -540,7 +604,7 @@ export default function CoderScreen({
                       className={field.locked ? `${styles.fieldRow} ${styles.fieldRowLocked}` : styles.fieldRow}
                       key={field.key}
                     >
-                      <div className={styles.fieldCopy}>
+                      <div className={styles.fieldCopy} id={`campo-${field.key}`}>
                         <span className={styles.fieldKey}>
                           {field.header}
                           {field.required && !field.locked ? (
@@ -562,6 +626,7 @@ export default function CoderScreen({
                             field={field}
                             value={current[field.key]}
                             onChange={(value) => updateField(field.key, value)}
+                            labelledBy={`campo-${field.key}`}
                           />
                         )}
                       </div>

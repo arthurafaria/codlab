@@ -1,3 +1,4 @@
+// Só roda com o corpus privado do projeto Desinfo, que não está no repositório.
 // Converte o CSV do projeto Desinfo em src/data/texts.js.
 //
 // Uso:

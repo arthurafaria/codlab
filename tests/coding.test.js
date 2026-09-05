@@ -6,6 +6,8 @@ import {
   buildPasteRows,
   buildRecords,
   missingRequiredFields,
+  alignBackup,
+  draftAnswers,
 } from "../lib/coding.js";
 
 const B = (key, extra = {}) => ({ key, header: key, type: "boolean", group: "g", ...extra });
@@ -123,6 +125,38 @@ describe("buildRecords", () => {
   });
 });
 
+describe("draftAnswers", () => {
+  const fields = [B("Auto", { locked: true }), B("Marca"), T("OBS")];
+  const codebook = { metaFields: [{ key: "ID" }], textField: "texto" };
+  const layout = computeLayout(fields, 0);
+  const source = [{ id: 1, ID: "A1", texto: "um texto longo do corpus", Extra: "meta", Marca: true }];
+
+  test("guarda só as respostas e o ID, não o corpus", () => {
+    const [d] = draftAnswers(buildRecords(source, layout, codebook), layout.editableFields ?? fields);
+    expect(Object.keys(d).sort()).toEqual(["Auto", "ID", "Marca", "OBS"]);
+    expect(d.texto).toBeUndefined();
+    expect(d.Extra).toBeUndefined();
+  });
+
+  test("o que foi respondido volta igual ao recarregar", () => {
+    const vivo = buildRecords(source, layout, codebook);
+    vivo[0].Marca = false;
+    vivo[0].OBS = "nota do codificador";
+    const [r] = buildRecords(source, layout, codebook, draftAnswers(vivo, fields));
+    expect(r.Marca).toBe(false);
+    expect(r.OBS).toBe("nota do codificador");
+    expect(r.texto).toBe("um texto longo do corpus");
+    expect(r.Extra).toBe("meta");
+  });
+
+  test("rascunho antigo, com o registro inteiro, continua sendo lido", () => {
+    const antigo = [{ ...source[0], Marca: false, OBS: "nota", texto: "adulterado" }];
+    const [r] = buildRecords(source, layout, codebook, antigo);
+    expect(r.OBS).toBe("nota");
+    expect(r.texto).toBe("um texto longo do corpus");
+  });
+});
+
 describe("missingRequiredFields", () => {
   const fields = [
     S("Tema", ["x"], { required: true }),
@@ -141,5 +175,100 @@ describe("missingRequiredFields", () => {
   });
   test("sem registro, sem faltas", () => {
     expect(missingRequiredFields(null, fields)).toEqual([]);
+  });
+});
+
+// Regressões de integridade: cada um destes já corrompeu dado em silêncio.
+describe("normalização de valores vindos da planilha", () => {
+  const campos = [B("Marca"), S("Tema", ["x", "y"]), T("OBS")];
+  const layout = computeLayout(campos, 0);
+  const codebook = { metaFields: [{ key: "ID" }], textField: "texto" };
+  const fmt = { no: "FALSE", yes: "TRUE" };
+
+  test('"TRUE" da planilha vira booleano verdadeiro, não Não', () => {
+    const [r] = buildRecords([{ id: 1, ID: "A", texto: "t", Marca: "TRUE" }], layout, codebook);
+    expect(r.Marca).toBe(true);
+    expect(serializeValue(r, B("Marca"), fmt)).toBe("TRUE");
+  });
+
+  test("aceita as grafias usadas em planilha de verdade", () => {
+    for (const v of ["TRUE", "true", "Verdadeiro", "SIM", "1", "x"]) {
+      const [r] = buildRecords([{ id: 1, ID: "A", texto: "t", Marca: v }], layout, codebook);
+      expect({ v, marca: r.Marca }).toEqual({ v, marca: true });
+    }
+    for (const v of ["FALSE", "false", "Não", "nao", "0", ""]) {
+      const [r] = buildRecords([{ id: 1, ID: "A", texto: "t", Marca: v }], layout, codebook);
+      expect({ v, marca: r.Marca }).toEqual({ v, marca: false });
+    }
+  });
+
+  test("ciclo completo: planilha respondida entra e sai igual", () => {
+    const fonte = [
+      { id: 1, ID: "A", texto: "t1", Marca: "TRUE", Tema: "x", OBS: "nota" },
+      { id: 2, ID: "B", texto: "t2", Marca: "FALSE", Tema: "", OBS: "" },
+    ];
+    const rows = buildRecords(fonte, layout, codebook);
+    expect(buildPasteRows(rows, layout, fmt)).toBe("TRUE\tx\tnota\nFALSE\t\t");
+  });
+
+  test("booleana não é inventada a partir de palavra desconhecida", () => {
+    const [r] = buildRecords([{ id: 1, ID: "A", texto: "t", Marca: "talvez" }], layout, codebook);
+    expect(r.Marca).toBe(false);
+  });
+});
+
+describe("alignBackup", () => {
+  const fonte = [{ id: 1, ID: "A", texto: "material A" }, { id: 2, ID: "B", texto: "material B" }];
+
+  test("alinha pelo ID, não pela posição", () => {
+    const trocado = [{ ID: "B", OBS: "de B" }, { ID: "A", OBS: "de A" }];
+    const { registros } = alignBackup(fonte, trocado);
+    expect(registros.map((r) => r.OBS)).toEqual(["de A", "de B"]);
+  });
+
+  test("recusa backup de outra rodada", () => {
+    expect(alignBackup(fonte, [{ ID: "A", OBS: "" }, { ID: "Z", OBS: "" }])).toEqual({
+      erro: "idDesconhecido", id: "B",
+    });
+  });
+
+  test("recusa tamanho diferente, ID repetido e backup sem ID", () => {
+    expect(alignBackup(fonte, [{ ID: "A" }]).erro).toBe("tamanho");
+    expect(alignBackup(fonte, [{ ID: "A" }, { ID: "A" }]).erro).toBe("idRepetido");
+    expect(alignBackup(fonte, [{ OBS: "x" }, { OBS: "y" }]).erro).toBe("semId");
+  });
+});
+
+describe("ordem da colagem contra a ordem real da aba", () => {
+  const campos = [S("A", ["x"]), S("B", ["y"])];
+
+  test("sem a ordem da aba, vale a ordem declarada", () => {
+    const l = computeLayout(campos, 2);
+    expect(l.pasteHeaders).toEqual(["A", "B"]);
+    expect(l.pasteAligned).toBe(true);
+  });
+
+  test("aba com B antes de A: o bloco sai na ordem da aba, e avisa", () => {
+    const l = computeLayout(campos, 99, ["item_id", "texto", "B", "A"]);
+    expect(l.pasteHeaders).toEqual(["B", "A"]);
+    expect(l.pasteAligned).toBe(false);
+    expect(l.pasteColLetter).toBe("C"); // começa na coluna de B
+  });
+
+  test("colunas separadas por metadado no meio são sinalizadas", () => {
+    const l = computeLayout(campos, 99, ["texto", "A", "nota", "B"]);
+    expect(l.pasteContiguous).toBe(false);
+  });
+
+  test("colunas lado a lado e na mesma ordem não geram aviso", () => {
+    const l = computeLayout(campos, 99, ["texto", "A", "B"]);
+    expect({ aligned: l.pasteAligned, contiguous: l.pasteContiguous, col: l.pasteColLetter }).toEqual({
+      aligned: true, contiguous: true, col: "B",
+    });
+  });
+
+  test("variável que não existe na aba: mantém a ordem declarada", () => {
+    const l = computeLayout(campos, 5, ["texto", "A"]);
+    expect(l.pasteHeaders).toEqual(["A", "B"]);
   });
 });

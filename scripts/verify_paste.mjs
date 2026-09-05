@@ -1,3 +1,5 @@
+// Só roda com o corpus privado do projeto Desinfo (data/ e src/data/texts.js),
+// que não está no repositório. Num clone limpo, este script falha no import.
 // Teste ponta-a-ponta do "Copiar valores" → colar na planilha.
 // 1. Preenche uma codificação de exemplo em alguns registros.
 // 2. Gera o bloco TSV igual ao botão "Copiar valores" (formato 0/1).
